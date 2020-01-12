@@ -78,7 +78,7 @@ class Event:
 class Wudder:
     def __init__(self,
                  graphql_endpoint,
-                 user=None,
+                 email=None,
                  password=None,
                  key_path=None,
                  key_password=None,
@@ -88,7 +88,9 @@ class Wudder:
         self.graphql = GraphQL(graphql_endpoint)
         self.logged = False
 
-        if key_path and key_password:
+        if key_password:
+            if key_path is None:
+                key_path = f'./{email}.json'
             self.web3 = EasyWeb3(key_path, key_password)
         self.web3 = None
 
@@ -109,19 +111,21 @@ class Wudder:
 
         self.ethereum_endpoint = ethereum_endpoint
 
-        if user and password:
-            self.login(user, password)
+        if email and password:
+            self.login(email, password)
 
         Thread(target=self._loop_refresh, daemon=True).start()
 
-    def signup(self, email, password='', key_password=None):
+    def signup(self, email, password='', key_path=None, key_password=None):
         if key_password is None:
-            key = None
+            encrypted_key = None
         else:
-            key_path = f'./{email}.json'
+            if key_path is None:
+                key_path = f'./{email}.json'
             encrypted_key = utils.gen_key(key_path, key_password)
             self.web3 = EasyWeb3(key_path, key_password)
         self._create_user(email, password, encrypted_key)
+        self.login(email, password)
 
     def update_key(self, encrypted_key):
         raise NotImplementedError
