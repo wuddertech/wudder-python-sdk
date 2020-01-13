@@ -77,11 +77,11 @@ class Event:
 
 class Wudder:
     def __init__(self,
-                 graphql_endpoint='https://api.testnet.wudder.tech/graphql',
                  email=None,
                  password=None,
                  key_path=None,
                  key_password=None,
+                 graphql_endpoint='https://api.testnet.wudder.tech/graphql',
                  ethereum_endpoint='https://cloudflare-eth.com/',
                  token=None,
                  refresh_token=None):
