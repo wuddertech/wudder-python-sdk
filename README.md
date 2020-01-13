@@ -12,7 +12,7 @@ pip install wudder
 ```python
 from wudder import Wudder
 
-wudder = Wudder('https://wudder-endpoint/graphql')
+wudder = Wudder()
 wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
@@ -20,7 +20,7 @@ wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```python
 from wudder import Wudder
 
-wudder = Wudder('https://wudder-endpoint/graphql', 'email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
+wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 evhash = self.wudder.create_event('Title', [Fragment('clave1', 'valor1'), Fragment('clave2', 'valor2')])
 ```
 
@@ -28,6 +28,6 @@ evhash = self.wudder.create_event('Title', [Fragment('clave1', 'valor1'), Fragme
 ```python
 from wudder import Wudder
 
-wudder = Wudder('https://wudder-endpoint/graphql', 'email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
+wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 evhash = self.wudder.get_event(evhash)
 ```

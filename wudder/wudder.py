@@ -77,7 +77,7 @@ class Event:
 
 class Wudder:
     def __init__(self,
-                 graphql_endpoint,
+                 graphql_endpoint='https://api.testnet.wudder.tech/graphql',
                  email=None,
                  password=None,
                  key_path=None,
