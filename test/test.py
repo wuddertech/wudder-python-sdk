@@ -44,7 +44,7 @@ class TestWudder(unittest.TestCase):
             self.wudder.check_ethereum_proof(self.proof['graphn_proof'], self.proof['anchor_txs']['ethereum']))
 
     def test_check_graphn_proof(self):
-        self.assertTrue(self.wudder.check_graphn_proof(self.proof))
+        self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
 
 
 if __name__ == '__main__':

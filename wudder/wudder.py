@@ -112,7 +112,7 @@ class Wudder:
         self.ethereum_endpoint = ethereum_endpoint
 
         if email and password:
-            self.login(email, password)
+            self._login(email, password)
 
         Thread(target=self._loop_refresh, daemon=True).start()
 
@@ -125,7 +125,7 @@ class Wudder:
             encrypted_key = utils.gen_key(key_path, key_password)
             self.web3 = EasyWeb3(key_path, key_password)
         self._create_user(email, password, encrypted_key)
-        self.login(email, password)
+        self._login(email, password)
 
     def update_key(self, encrypted_key):
         raise NotImplementedError
@@ -139,7 +139,7 @@ class Wudder:
         # variables = {'user': {'ethAccount': encrypted_key}}
         # self.graphql.execute(mutation, variables)
 
-    def login(self, email, password):
+    def _login(self, email, password):
         mutation = '''
             mutation {
                 login(email: "''' + email + '''", password: "''' + password + '''"){
