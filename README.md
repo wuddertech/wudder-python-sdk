@@ -18,7 +18,7 @@ wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 
 ### Create event
 ```python
-from wudder import Wudder
+from wudder import Wudder, Fragment
 
 wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 evhash = self.wudder.create_event('Title', [Fragment('clave1', 'valor1'), Fragment('clave2', 'valor2')])
