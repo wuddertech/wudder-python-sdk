@@ -9,7 +9,7 @@ pip install wudder
 ## Usage
 
 ```
-from wudder import Wudder, Fragment 
+from wudder import Wudder, Fragment, Event
 ```
 
 ### Create account
