@@ -116,7 +116,7 @@ class Wudder:
 
         Thread(target=self._loop_refresh, daemon=True).start()
 
-    def signup(self, email, password='', key_path=None, key_password=None):
+    def signup(self, email, password='', key_password=None, key_path=None):
         if key_password is None:
             encrypted_key = None
         else:
