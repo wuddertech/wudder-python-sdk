@@ -141,14 +141,15 @@ class Wudder:
 
     def _login(self, email, password):
         mutation = '''
-            mutation {
-                login(email: "''' + email + '''", password: "''' + password + '''"){
+            mutation Login($email: String!, $password: String!) {
+                login(email: $email, password: $password){
                     token
                     refreshToken
                 }
             }
         '''
-        response = self.graphql.execute(mutation)
+        variables = {'email': email, 'password': password}
+        response = self.graphql.execute(mutation, variables)
 
         if response['login'] is None:
             raise errors.AuthError
@@ -296,14 +297,15 @@ class Wudder:
 
     def _refresh(self):
         mutation = '''
-            mutation {
-                refreshToken(token: "''' + self.refresh_token + '''"){
+            mutation RefreshToken($token: String!) {
+                refreshToken(token: $token){
                     token
                     refreshToken
                 }
             }
         '''
-        response = self.graphql.execute(mutation)
+        variables = {'token': token}
+        response = self.graphql.execute(mutation, variables)
         self.token = response['refreshToken']['token']
         self.refresh_token = response['refreshToken']['refreshToken']
         self._update_headers()
