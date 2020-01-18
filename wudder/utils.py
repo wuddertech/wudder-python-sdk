@@ -87,9 +87,7 @@ def get_root_hash(proof: str):
         return root_hash
 
 
-def gen_key(path, password):
+def gen_key(password):
     key = EasyWeb3().web3.eth.account.create()
     key_dict = key.encrypt(password)
-    with open(path, 'w') as key_file:
-        json.dump(key_dict, key_file)
     return key_dict

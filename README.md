@@ -14,8 +14,7 @@ from wudder import Wudder, Fragment, Event
 
 ### Create account
 ```python
-wudder = Wudder()
-wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
+Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
 ### Login / initialisation

@@ -76,22 +76,39 @@ class Event:
 
 
 class Wudder:
+
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.testnet.wudder.tech/graphql/'
+    DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
+
+    @staticmethod
+    def signup(email, password, key_password):
+        encrypted_key = utils.gen_key(key_password)
+        EasyWeb3(encrypted_key, key_password)
+        Wudder._create_user(email, password, encrypted_key)
+
+    def _create_user(email, password, key, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
+        mutation = '''
+            mutation CreateUser($user: UserInput!, $password: String!){
+                createUser(user: $user, password: $password) {
+                    id
+                }
+            }
+        '''
+        variables = {'user': {'email': email}, 'password': password, 'ethAccount': key}
+        GraphQL(graphql_endpoint).execute(mutation, variables)
+
     def __init__(self,
-                 email=None,
-                 password=None,
-                 key_path=None,
-                 key_password=None,
-                 graphql_endpoint='https://api.testnet.wudder.tech/graphql',
-                 ethereum_endpoint='https://cloudflare-eth.com/',
+                 email,
+                 password,
+                 key_password,
+                 graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT,
+                 ethereum_endpoint=DEFAULT_ETHEREUM_ENDPOINT,
                  token=None,
                  refresh_token=None):
         self.graphql = GraphQL(graphql_endpoint)
         self.logged = False
 
-        if key_password:
-            if key_path is None:
-                key_path = f'./{email}.json'
-            self.web3 = EasyWeb3(key_path, key_password)
+        self.key_password = key_password
         self.web3 = None
 
         if token:
@@ -106,26 +123,12 @@ class Wudder:
 
         if self.token and self.refresh_token:
             self.logged = True
-        else:
-            self.logged = False
+        elif email and password:
+            self._login(email, password, key_password)
 
         self.ethereum_endpoint = ethereum_endpoint
 
-        if email and password:
-            self._login(email, password)
-
         Thread(target=self._loop_refresh, daemon=True).start()
-
-    def signup(self, email, password='', key_password=None, key_path=None):
-        if key_password is None:
-            encrypted_key = None
-        else:
-            if key_path is None:
-                key_path = f'./{email}.json'
-            encrypted_key = utils.gen_key(key_path, key_password)
-            self.web3 = EasyWeb3(key_path, key_password)
-        self._create_user(email, password, encrypted_key)
-        self._login(email, password)
 
     def update_key(self, encrypted_key):
         raise NotImplementedError
@@ -139,12 +142,13 @@ class Wudder:
         # variables = {'user': {'ethAccount': encrypted_key}}
         # self.graphql.execute(mutation, variables)
 
-    def _login(self, email, password):
+    def _login(self, email, password, key_password):
         mutation = '''
             mutation Login($email: String!, $password: String!) {
                 login(email: $email, password: $password){
                     token
                     refreshToken
+                    account
                 }
             }
         '''
@@ -157,6 +161,10 @@ class Wudder:
         self.token = response['login']['token']
         self.refresh_token = response['login']['refreshToken']
         self._update_headers()
+
+        encrypted_key = json.loads(response['login']['account'])
+        self.web3 = EasyWeb3(encrypted_key, key_password)
+
         self.logged = True
 
     def create_event(self, title, fragments, trace=None, operation=None):
@@ -281,19 +289,6 @@ class Wudder:
 
     def _update_headers(self):
         self.graphql.set_headers({'x-jwt-token': self.token})
-
-    def _create_user(self, email, password, key=None):
-        mutation = '''
-            mutation CreateUser($user: UserInput!, $password: String!){
-                createUser(user: $user, password: $password) {
-                    id
-                }
-            }
-        '''
-        variables = {'user': {'email': email}, 'password': password}
-        if key is not None:
-            variables['ethAccount'] = key
-        self.graphql.execute(mutation, variables)
 
     def _refresh(self):
         mutation = '''
