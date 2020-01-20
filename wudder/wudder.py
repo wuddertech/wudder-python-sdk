@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from . import utils, errors
+from . import utils
+from .errors import *
 from easygraphql import GraphQL
 import json
 from threading import Thread
@@ -86,6 +87,17 @@ class Wudder:
         EasyWeb3(encrypted_key, key_password)
         Wudder._create_user(email, password, encrypted_key)
 
+        done = False
+        while not done:
+            try:
+                Wudder(email, password, key_password)
+                done = True
+            except UnknownUser:
+                print('User creation failed, retrying...')
+                Wudder._create_user(email, password, encrypted_key)
+            except AuthError:
+                raise AuthError('User already exists')
+
     def _create_user(email, password, key, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
@@ -94,7 +106,7 @@ class Wudder:
                 }
             }
         '''
-        variables = {'user': {'email': email}, 'password': password, 'ethAccount': key}
+        variables = {'user': {'email': email, 'ethAccount': utils.stringify(key)}, 'password': password}
         GraphQL(graphql_endpoint).execute(mutation, variables)
 
     def __init__(self,
@@ -148,22 +160,28 @@ class Wudder:
                 login(email: $email, password: $password){
                     token
                     refreshToken
-                    account
+                    ethAccount
                 }
             }
         '''
         variables = {'email': email, 'password': password}
-        response = self.graphql.execute(mutation, variables)
+        data, errors = self.graphql.execute(mutation, variables)
 
-        if response['login'] is None:
-            raise errors.AuthError
+        if errors:
+            if errors[0]['code'] == 404:
+                raise UnknownUser('The user does not exist')
+            elif errors[0]['code'] == 401:
+                raise AuthError
 
-        self.token = response['login']['token']
-        self.refresh_token = response['login']['refreshToken']
+        self.token = data['login']['token']
+        self.refresh_token = data['login']['refreshToken']
         self._update_headers()
 
-        encrypted_key = json.loads(response['login']['account'])
-        self.web3 = EasyWeb3(encrypted_key, key_password)
+        encrypted_key = json.loads(data['login']['ethAccount'])
+        try:
+            self.web3 = EasyWeb3(encrypted_key, key_password)
+        except ValueError:
+            raise AuthError('Incorrect private key password')
 
         self.logged = True
 
@@ -188,15 +206,15 @@ class Wudder:
             }
         '''
         variables = {'evhash': evhash}
-        response = self.graphql.execute(query, variables)
+        data, errors = self.graphql.execute(query, variables)
 
-        if response['evidence'] is None:
-            raise errors.UnknownEvent
+        if data['evidence'] is None:
+            raise UnknownEvent
 
-        if 'graphnData' in response['evidence']:
-            proof = self._extract_proof_from_graphn_data(response['evidence']['graphnData'])
+        if 'graphnData' in data['evidence']:
+            proof = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
 
-        original_content = json.loads(response['evidence']['originalContent'])['content']
+        original_content = json.loads(data['evidence']['originalContent'])['content']
 
         event_dict = {
             'type': original_content['type'],
@@ -229,12 +247,12 @@ class Wudder:
             }
         '''
         variables = {'evhash': evhash}
-        response = self.graphql.execute(query, variables)
+        data, errors = self.graphql.execute(query, variables)
 
-        if response['trace'] is None:
-            raise errors.UnknownEvent
+        if data['trace'] is None:
+            raise UnknownEvent
 
-        return response['trace']
+        return data['trace']
 
     def get_proof(self, evhash):
         query = '''
@@ -245,13 +263,13 @@ class Wudder:
             }
         '''
         variables = {'evhash': evhash}
-        response = self.graphql.execute(query, variables)
+        data, errors = self.graphql.execute(query, variables)
 
-        if response['evidence'] is None:
-            raise errors.UnknownEvent
+        if data['evidence'] is None:
+            raise UnknownEvent
 
-        if 'graphnData' in response['evidence']:
-            return self._extract_proof_from_graphn_data(response['evidence']['graphnData'])
+        if 'graphnData' in data['evidence']:
+            return self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
 
     def check_ethereum_proof(self, graphn_proof, anchor_tx):
         root_hash = utils.get_root_hash(graphn_proof)
@@ -300,9 +318,9 @@ class Wudder:
             }
         '''
         variables = {'token': token}
-        response = self.graphql.execute(mutation, variables)
-        self.token = response['refreshToken']['token']
-        self.refresh_token = response['refreshToken']['refreshToken']
+        data, errors = self.graphql.execute(mutation, variables)
+        self.token = data['refreshToken']['token']
+        self.refresh_token = data['refreshToken']['refreshToken']
         self._update_headers()
 
     def _format_event(self, title, fragments, trace=None, operation=None):
@@ -316,9 +334,9 @@ class Wudder:
             }
         '''
         variables = {'displayName': title, 'content': event.dict}
-        response = self.graphql.execute(mutation, variables)
-        formatted_transaction = response['formatTransaction']['formattedTransaction']
-        prepared_content = json.loads(response['formatTransaction']['preparedContent'])
+        data, errors = self.graphql.execute(mutation, variables)
+        formatted_transaction = data['formatTransaction']['formattedTransaction']
+        prepared_content = json.loads(data['formatTransaction']['preparedContent'])
         return formatted_transaction, prepared_content
 
     def _send_event(self, transaction, signature_hash=''):
@@ -330,5 +348,5 @@ class Wudder:
             }
         '''
         variables = {'evidence': {'event_tx': transaction, 'signature': signature_hash}}
-        response = self.graphql.execute(mutation, variables)
-        return response['createEvidence']['evhash']
+        data, errors = self.graphql.execute(mutation, variables)
+        return data['createEvidence']['evhash']
