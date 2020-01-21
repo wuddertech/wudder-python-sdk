@@ -82,23 +82,23 @@ class Wudder:
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
     @staticmethod
-    def signup(email, password, key_password):
-        encrypted_key = utils.gen_key(key_password)
-        EasyWeb3(encrypted_key, key_password)
-        Wudder._create_user(email, password, encrypted_key)
+    def signup(email, password, private_key_password):
+        private_key = utils.generate_private_key(private_key_password)
+        EasyWeb3(private_key, private_key_password)
+        Wudder._create_user(email, password, private_key)
 
         done = False
         while not done:
             try:
-                Wudder(email, password, key_password)
+                Wudder(email, password, private_key_password)
                 done = True
             except UnknownUser:
                 print('User creation failed, retrying...')
-                Wudder._create_user(email, password, encrypted_key)
+                Wudder._create_user(email, password, private_key)
             except AuthError:
                 raise AuthError('User already exists')
 
-    def _create_user(email, password, key, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
+    def _create_user(email, password, private_key, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
                 createUser(user: $user, password: $password) {
@@ -106,55 +106,46 @@ class Wudder:
                 }
             }
         '''
-        variables = {'user': {'email': email, 'ethAccount': utils.stringify(key)}, 'password': password}
-        GraphQL(graphql_endpoint).execute(mutation, variables)
+        variables = {'user': {'email': email, 'ethAccount': utils.stringify(private_key)}, 'password': password}
+        _, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
+
+        if errors:
+            raise SignupError
 
     def __init__(self,
                  email,
                  password,
-                 key_password,
+                 private_key_password,
                  graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT,
-                 ethereum_endpoint=DEFAULT_ETHEREUM_ENDPOINT,
-                 token=None,
-                 refresh_token=None):
+                 ethereum_endpoint=DEFAULT_ETHEREUM_ENDPOINT):
         self.graphql = GraphQL(graphql_endpoint)
         self.logged = False
 
-        self.key_password = key_password
+        self._private_key_password = private_key_password
         self.web3 = None
 
-        if token:
-            self.token = token
-        else:
-            self.token = None
-
-        if refresh_token:
-            self.refresh_token = refresh_token
-        else:
-            self.refresh_token = None
-
-        if self.token and self.refresh_token:
-            self.logged = True
-        elif email and password:
-            self._login(email, password, key_password)
-
+        self._login(email, password, private_key_password)
         self.ethereum_endpoint = ethereum_endpoint
-
         Thread(target=self._loop_refresh, daemon=True).start()
 
-    def update_key(self, encrypted_key):
-        raise NotImplementedError
-        # mutation = '''
-        #     mutation UpdateUser($user: UserInput!){
-        #         updateUser(user: $user) {
-        #             id
-        #         }
-        #     }
-        # '''
-        # variables = {'user': {'ethAccount': encrypted_key}}
-        # self.graphql.execute(mutation, variables)
+    @property
+    def private_key(self):
+        return self._private_key
 
-    def _login(self, email, password, key_password):
+    def update_private_key(self, private_key):
+        mutation = '''
+            mutation UpdateUser($user: UserInput!){
+                updateUser(user: $user) {
+                    id
+                }
+            }
+        '''
+        if isinstance(private_key, dict):
+            private_key = utils.stringify(private_key)
+        variables = {'user': {'ethAccount': private_key}}
+        self.graphql.execute(mutation, variables)
+
+    def _login(self, email, password, private_key_password):
         mutation = '''
             mutation Login($email: String!, $password: String!) {
                 login(email: $email, password: $password){
@@ -177,9 +168,9 @@ class Wudder:
         self.refresh_token = data['login']['refreshToken']
         self._update_headers()
 
-        encrypted_key = json.loads(data['login']['ethAccount'])
+        self._private_key = json.loads(data['login']['ethAccount'])
         try:
-            self.web3 = EasyWeb3(encrypted_key, key_password)
+            self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
             raise AuthError('Incorrect private key password')
 
@@ -283,7 +274,7 @@ class Wudder:
     def _extract_proof_from_graphn_data(self, graphn_data_str):
         graphn_data = json.loads(graphn_data_str)
         if 'prefixes' in graphn_data and 'telsius' in graphn_data['prefixes']:
-            anchor_txs = {key: value['tx_hash'] for key, value in graphn_data['prefixes'].items()}
+            anchor_txs = {private_key: value['tx_hash'] for private_key, value in graphn_data['prefixes'].items()}
             return {'graphn_proof': graphn_data['proof'], 'anchor_txs': anchor_txs}
 
     def _check_ethereum_root_hash(self, anchor_tx, root_hash):

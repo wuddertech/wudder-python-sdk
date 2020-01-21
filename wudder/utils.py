@@ -27,10 +27,10 @@ def mtk_256(text: str):
 
 
 def stringify(unordered_dict: dict):
-    keys = sorted(list(unordered_dict.keys()))
+    private_keys = sorted(list(unordered_dict.keys()))
     new_dict = dict()
-    for key in keys:
-        new_dict[key] = unordered_dict[key]
+    for private_key in private_keys:
+        new_dict[private_key] = unordered_dict[private_key]
     return json.dumps(new_dict, separators=(',', ':'))
 
 
@@ -87,7 +87,7 @@ def get_root_hash(proof: str):
         return root_hash
 
 
-def gen_key(password):
-    key = EasyWeb3().web3.eth.account.create()
-    key_dict = key.encrypt(password)
-    return key_dict
+def generate_private_key(password):
+    private_key = EasyWeb3().web3.eth.account.create()
+    private_key_dict = private_key.encrypt(password)
+    return private_key_dict

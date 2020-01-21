@@ -12,3 +12,7 @@ class UnknownEvent(Exception):
 
 class UnknownUser(Exception):
     pass
+
+
+class SignupError(Exception):
+    pass
