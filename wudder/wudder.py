@@ -82,11 +82,12 @@ class Wudder:
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
     @staticmethod
-    def signup(email, password, private_key_password):
+    def signup(email, password, private_key_password, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
         private_key = utils.generate_private_key(private_key_password)
         EasyWeb3(private_key, private_key_password)
-        Wudder._create_user(email, password, private_key)
+        Wudder._create_user(email, password, private_key, graphql_endpoint)
 
+        remaining_attempts = 5
         done = False
         while not done:
             try:
@@ -94,11 +95,14 @@ class Wudder:
                 done = True
             except UnknownUser:
                 print('User creation failed, retrying...')
-                Wudder._create_user(email, password, private_key)
+                if remaining_attempts > 0:
+                    Wudder._create_user(email, password, private_key, graphql_endpoint)
+                    remaining_attempts -= 1
+                    time.sleep(5)
             except AuthError:
                 raise AuthError('User already exists')
 
-    def _create_user(email, password, private_key, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
+    def _create_user(email, password, private_key, graphql_endpoint):
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
                 createUser(user: $user, password: $password) {
