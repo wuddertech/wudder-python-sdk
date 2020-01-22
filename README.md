@@ -39,7 +39,7 @@ evhash = wudder.get_trace(evhash)
 
 ### Get proof
 ```python
-proof = wudder.get_proof(self.evhash)
+proof = wudder.get_proof(evhash)
 ```
 
 ### Check Ethereum proof
