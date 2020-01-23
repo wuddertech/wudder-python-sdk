@@ -26,20 +26,20 @@ class TestWudder(unittest.TestCase):
         event = self.wudder.get_event(self.evhash)
         self.assertDictEqual(event.dict, self.event_dict)
 
-    # def test_get_trace(self):
-    #     trace = self.wudder.get_trace(self.evhash)
-    #     self.assertDictEqual(trace, self.trace)
+    def test_get_trace(self):
+        trace = self.wudder.get_trace(self.evhash)
+        self.assertDictEqual(trace, self.trace)
 
-    # def test_get_proof(self):
-    #     proof = self.wudder.get_proof(self.evhash)
-    #     self.assertDictEqual(proof, self.proof)
+    def test_get_proof(self):
+        proof = self.wudder.get_proof(self.evhash)
+        self.assertDictEqual(proof, self.proof)
 
-    # def test_check_ethereum_proof(self):
-    #     self.assertTrue(
-    #         self.wudder.check_ethereum_proof(self.proof['graphn_proof'], self.proof['anchor_txs']['ethereum']))
+    def test_check_ethereum_proof(self):
+        self.assertTrue(
+            self.wudder.check_ethereum_proof(self.proof['graphn_proof'], self.proof['anchor_txs']['ethereum']))
 
-    # def test_check_graphn_proof(self):
-    #     self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
+    def test_check_graphn_proof(self):
+        self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
 
 
 if __name__ == '__main__':
