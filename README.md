@@ -17,14 +17,14 @@ from wudder import Wudder, Fragment, Event, utils
 Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
-### Login / initialisation
+### Login
 ```python
 wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
 ### Create event
 ```python
-evhash = wudder.create_event('Title', [Fragment('clave1', 'valor1'), Fragment('clave2', 'valor2')])
+evhash = wudder.create_event('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
 ```
 
 ### Get event
