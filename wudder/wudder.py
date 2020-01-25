@@ -164,7 +164,13 @@ class Wudder:
         self.refresh_token = data['login']['refreshToken']
         self._update_headers()
 
-        self._private_key = json.loads(data['login']['ethAccount'])
+        # Create private_key if missing
+        if not data['login']['ethAccount']:
+            self._private_key = utils.generate_private_key(private_key_password)
+            self.update_private_key(self._private_key)
+        else:
+            self._private_key = json.loads(data['login']['ethAccount'])
+
         try:
             self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
