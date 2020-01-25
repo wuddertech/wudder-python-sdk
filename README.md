@@ -7,7 +7,6 @@ pip install wudder
 ```
 
 ## Usage
-
 ```
 from wudder import Wudder, Fragment, Event, utils
 ```
@@ -17,14 +16,29 @@ from wudder import Wudder, Fragment, Event, utils
 Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
+> You can specify a custom GraphQL endpoint with the argument `graphql_endpoint`
+```python
+Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', graphql_endpoint='https://api.testnet.wudder.tech/graphql/')
+```
+
 ### Login
 ```python
 wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
+> Again, you can specify a custom GraphQL endpoint with the argument `graphql_endpoint`
+```python
+wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', graphql_endpoint='https://api.testnet.wudder.tech/graphql/')
+```
+
 ### Create event
 ```python
 evhash = wudder.create_event('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
+```
+
+> If you want to append a new event to an existing trace, specify the `evhash` of its first event with the argument `trace`
+```python
+evhash = wudder.create_event('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')], trace='c106851cc1ce91b68254c1e82b2b5e2dbd97471ec7d7ffb6f55aeadba7683a04')
 ```
 
 ### Get event
