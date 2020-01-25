@@ -61,7 +61,7 @@ proof = wudder.get_proof(evhash)
 wudder.check_ethereum_proof(proof['graphn_proof'], proof['anchor_txs']['ethereum']))
 ```
 
-### Check GraphN proof
+### Check Graphn proof
 ```python
 wudder.check_graphn_proof()
 ```
