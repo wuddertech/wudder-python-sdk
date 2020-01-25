@@ -6,13 +6,16 @@ class AuthError(Exception):
     pass
 
 
-class UnknownEvent(Exception):
-    pass
-
-
-class UnknownUser(Exception):
+class NotFoundError(Exception):
     pass
 
 
 class SignupError(Exception):
+    pass
+
+
+class RateLimitExceededError(Exception):
+    pass
+
+class UnknownError(Exception):
     pass

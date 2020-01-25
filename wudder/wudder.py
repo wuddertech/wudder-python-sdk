@@ -93,14 +93,12 @@ class Wudder:
             try:
                 Wudder(email, password, private_key_password)
                 done = True
-            except UnknownUser:
+            except NotFoundError:
                 print('User creation failed, retrying...')
                 if remaining_attempts > 0:
                     Wudder._create_user(email, password, private_key, graphql_endpoint)
                     remaining_attempts -= 1
                     time.sleep(5)
-            except AuthError:
-                raise AuthError('User already exists')
 
     def _create_user(email, password, private_key, graphql_endpoint):
         mutation = '''
@@ -161,12 +159,7 @@ class Wudder:
         '''
         variables = {'email': email, 'password': password}
         data, errors = self.graphql.execute(mutation, variables)
-
-        if errors:
-            if errors[0]['code'] == 404:
-                raise UnknownUser('The user does not exist')
-            elif errors[0]['code'] == 401:
-                raise AuthError
+        self._manage_common_errors(errors)
 
         self.token = data['login']['token']
         self.refresh_token = data['login']['refreshToken']
@@ -176,7 +169,7 @@ class Wudder:
         try:
             self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
-            raise AuthError('Incorrect private key password')
+            raise AuthError
 
         self.logged = True
 
@@ -202,9 +195,10 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
+        self._manage_common_errors(errors)
 
         if data['evidence'] is None:
-            raise UnknownEvent
+            raise NotFoundError
 
         if 'graphnData' in data['evidence']:
             proof = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
@@ -243,9 +237,10 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
+        self._manage_common_errors(errors)
 
         if data['trace'] is None:
-            raise UnknownEvent
+            raise NotFoundError
 
         return data['trace']
 
@@ -259,9 +254,10 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
+        self._manage_common_errors(errors)
 
         if data['evidence'] is None:
-            raise UnknownEvent
+            raise NotFoundError
 
         if 'graphnData' in data['evidence']:
             return self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
@@ -314,6 +310,8 @@ class Wudder:
         '''
         variables = {'token': token}
         data, errors = self.graphql.execute(mutation, variables)
+        self._manage_common_errors(errors)
+
         self.token = data['refreshToken']['token']
         self.refresh_token = data['refreshToken']['refreshToken']
         self._update_headers()
@@ -330,6 +328,8 @@ class Wudder:
         '''
         variables = {'displayName': title, 'content': event.dict}
         data, errors = self.graphql.execute(mutation, variables)
+        self._manage_common_errors(errors)
+
         formatted_transaction = data['formatTransaction']['formattedTransaction']
         prepared_content = json.loads(data['formatTransaction']['preparedContent'])
         return formatted_transaction, prepared_content
@@ -344,4 +344,21 @@ class Wudder:
         '''
         variables = {'evidence': {'event_tx': transaction, 'signature': signature_hash}}
         data, errors = self.graphql.execute(mutation, variables)
+        self._manage_common_errors(errors)
+
         return data['createEvidence']['evhash']
+
+    def _manage_common_errors(self, errors):
+        if not errors:
+            return
+
+        if errors[0]['code'] == 429:
+            raise RateLimitExceededError
+
+        if errors[0]['code'] == 404:
+            raise NotFoundError
+
+        elif errors[0]['code'] == 401:
+            raise AuthError
+
+        raise UnknownError
