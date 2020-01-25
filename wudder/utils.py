@@ -90,4 +90,6 @@ def get_root_hash(proof: str):
 def generate_private_key(password):
     private_key = EasyWeb3().web3.eth.account.create()
     private_key_dict = private_key.encrypt(password)
+    with open(f'{private_key.address}.json', 'w') as output_file:
+        json.dump(private_key_dict, output_file)
     return private_key_dict
