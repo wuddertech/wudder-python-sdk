@@ -121,7 +121,6 @@ class Wudder:
                  graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT,
                  ethereum_endpoint=DEFAULT_ETHEREUM_ENDPOINT):
         self.graphql = GraphQL(graphql_endpoint)
-        self.logged = False
 
         self._private_key_password = private_key_password
         self.web3 = None
@@ -170,8 +169,6 @@ class Wudder:
             self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
             raise AuthError
-
-        self.logged = True
 
     def create_event(self, title, fragments, trace=None, operation=None):
         transaction, _ = self._format_event(title, fragments, trace, operation)
@@ -290,25 +287,22 @@ class Wudder:
 
     def _loop_refresh(self):
         while True:
-            if self.logged:
-                time.sleep(3600)
-                self._refresh()
-            else:
-                time.sleep(60)
+            time.sleep(3600)
+            self._refresh()
 
     def _update_headers(self):
         self.graphql.set_headers({'x-jwt-token': self.token})
 
     def _refresh(self):
         mutation = '''
-            mutation RefreshToken($token: String!) {
-                refreshToken(token: $token){
+            mutation RefreshToken($refreshToken: String!) {
+                refreshToken(token: $refreshToken){
                     token
                     refreshToken
                 }
             }
         '''
-        variables = {'token': token}
+        variables = {'refreshToken': self.refresh_token}
         data, errors = self.graphql.execute(mutation, variables)
         self._manage_common_errors(errors)
 
