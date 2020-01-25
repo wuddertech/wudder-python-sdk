@@ -43,12 +43,12 @@ evhash = wudder.create_event('Title', [Fragment('key1', 'value1'), Fragment('key
 
 ### Get event
 ```python
-evhash = wudder.get_event(evhash)
+event = wudder.get_event(evhash)
 ```
 
 ### Get trace
 ```python
-evhash = wudder.get_trace(evhash)
+trace = wudder.get_trace(evhash)
 ```
 
 ### Get proof
