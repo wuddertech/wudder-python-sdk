@@ -203,9 +203,6 @@ class Wudder:
         if data['evidence'] is None:
             raise NotFoundError
 
-        if 'graphnData' in data['evidence']:
-            proof = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
-
         original_content = json.loads(data['evidence']['originalContent'])['content']
 
         event_dict = {
@@ -247,7 +244,7 @@ class Wudder:
 
         return data['trace']
 
-    def get_proof(self, evhash):
+    def get_proof(self, evhash, force_tmp_l2_proof=False):
         query = '''
             query GetEvidence($evhash: String!){
                 evidence(evhash: $evhash){
@@ -259,11 +256,13 @@ class Wudder:
         data, errors = self.graphql.execute(query, variables)
         self._manage_common_errors(errors)
 
-        if data['evidence'] is None:
+        if data['evidence'] is None or data['evidence']['graphnData'] is None:
             raise NotFoundError
 
         if 'graphnData' in data['evidence']:
-            return self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
+            proof_dict = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
+            if force_tmp_l2_proof or 'anchor_txs' in proof_dict:
+                return proof_dict
 
     def check_ethereum_proof(self, graphn_proof, anchor_tx):
         root_hash = utils.get_root_hash(graphn_proof)
@@ -276,9 +275,11 @@ class Wudder:
 
     def _extract_proof_from_graphn_data(self, graphn_data_str):
         graphn_data = json.loads(graphn_data_str)
-        if 'prefixes' in graphn_data and 'telsius' in graphn_data['prefixes']:
+        proof_dict = {'graphn_proof': graphn_data['proof']}
+        if 'prefixes' in graphn_data and 'ethereum' in graphn_data['prefixes']:
             anchor_txs = {private_key: value['tx_hash'] for private_key, value in graphn_data['prefixes'].items()}
-            return {'graphn_proof': graphn_data['proof'], 'anchor_txs': anchor_txs}
+            proof_dict['anchor_txs'] = anchor_txs
+        return proof_dict
 
     def _check_ethereum_root_hash(self, anchor_tx, root_hash):
         eth_root_hash = self._get_ethereum_tx_input(anchor_tx, self.ethereum_endpoint)[2:]  # remove 0x
