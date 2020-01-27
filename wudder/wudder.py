@@ -42,7 +42,12 @@ class Event:
     TYPE_NEW_TRACE = 'NEW_TRACE'
     TYPE_NEW_EVENT = 'ADD_EVENT'
 
-    def __init__(self, fragments=None, trace: str = None, operation_type=None, event_dict: dict = None):
+    def __init__(self,
+                 fragments=None,
+                 trace=None,
+                 operation_type: str = None,
+                 salt: str = None,
+                 event_dict: dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
             return
@@ -51,11 +56,16 @@ class Event:
             fragments = [fragments]
         self.fragments = fragments
 
+        if isinstance(trace, list):
+            trace = [trace]
+            raise NotImplementedError
         self.trace = trace
 
         if operation_type is None:
             operation_type = Event.TYPE_NEW_TRACE
         self.type = operation_type
+
+        self.salt = salt
 
         self.proof = None
 
@@ -63,6 +73,7 @@ class Event:
         self.fragments = event_dict['fragments']
         self.trace = event_dict['trace']
         self.type = event_dict['type']
+        self.salt = event_dict['salt']
         if 'proof' in event_dict:
             self.proof = event_dict['proof']
 
@@ -73,7 +84,10 @@ class Event:
             if isinstance(fragment, Fragment):
                 fragment = fragment.dict
             fragments.append(fragment)
-        return {'fragments': fragments, 'trace': self.trace, 'type': self.type}
+        event_dict = {'fragments': fragments, 'trace': self.trace, 'type': self.type}
+        if self.salt is not None:
+            event_dict['salt'] = self.salt
+        return event_dict
 
 
 class Wudder:
@@ -177,13 +191,22 @@ class Wudder:
             raise AuthError
 
     def create_event(self, title, fragments, trace=None, operation=None):
-        transaction, _ = self._format_event(title, fragments, trace, operation)
-        signature_hash = ''
+        tx_str, _ = self._format_event(title, fragments, trace, operation)
+        signature = ''
         if self.web3 is not None:
-            signature = self.web3.sign(transaction)
-            signature_hash = utils.mtk_512(signature)
-        evhash = self._send_event(transaction, signature_hash)
+            tx = json.loads(tx_str)
+            if 'from' not in tx:
+                tx['from'] = ''
+            signature = self._get_signature(tx['version'], tx['nodecode'], tx['from'], tx['cthash'])
+        evhash = self._send_event(tx_str, signature)
         return evhash
+
+    def check_sighash(self, sighash, event, version=1, nodecode=1):
+        cthash = utils.cthash(event.dict)
+        obtained_sighash = self._get_sighash(version, nodecode, event.trace, cthash)
+        if obtained_sighash == sighash:
+            return True
+        return False
 
     def get_event(self, evhash):
         query = '''
@@ -332,10 +355,10 @@ class Wudder:
         self._manage_common_errors(errors)
 
         formatted_transaction = data['formatTransaction']['formattedTransaction']
-        prepared_content = json.loads(data['formatTransaction']['preparedContent'])
+        prepared_content = data['formatTransaction']['preparedContent']
         return formatted_transaction, prepared_content
 
-    def _send_event(self, transaction, signature_hash=''):
+    def _send_event(self, tx_str, signature=''):
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!){
                 createEvidence(evidence: $evidence){
@@ -343,10 +366,9 @@ class Wudder:
                 }
             }
         '''
-        variables = {'evidence': {'event_tx': transaction, 'signature': signature_hash}}
+        variables = {'evidence': {'event_tx': tx_str, 'signature': signature}}
         data, errors = self.graphql.execute(mutation, variables)
         self._manage_common_errors(errors)
-
         return data['createEvidence']['evhash']
 
     def _manage_common_errors(self, errors):
@@ -363,3 +385,13 @@ class Wudder:
             raise AuthError
 
         raise UnknownError
+
+    def _get_sighash(self, version, nodecode, from_, cthash):
+        signature = self._get_signature(version, nodecode, from_, cthash)
+        sighash = utils.mtk_512(signature)
+        return sighash
+
+    def _get_signature(self, version, nodecode, from_, cthash):
+        signable_content = utils.get_tx_signable_content(version, nodecode, from_, cthash)
+        signature = self.web3.sign(signable_content)
+        return signature

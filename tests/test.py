@@ -17,6 +17,8 @@ class TestWudder(unittest.TestCase):
     proof = env.proof
     event_dict = env.event_dict
     trace = env.trace
+    evhash2 = env.evhash2
+    sighash = env.sighash
 
     def test_create_event(self):
         evhash = self.wudder.create_event('Title', Fragment('clave', 'valor'))
@@ -40,6 +42,10 @@ class TestWudder(unittest.TestCase):
 
     def test_check_graphn_proof(self):
         self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
+
+    def test_sighash(self):
+        event = self.wudder.get_event(self.evhash2)
+        self.assertTrue(self.wudder.check_sighash(self.sighash, event))
 
 
 if __name__ == '__main__':

@@ -36,17 +36,17 @@ def stringify(unordered_dict: dict):
 
 def cthash(content: dict):
     fragment_hashes = []
-    for fragment in prepared_content['fragments']:
+    for fragment in content['fragments']:
         if isinstance(fragment, str) and len(fragment) == 128:
             fragment_hashes.append(fragment)
         else:
             fragment_hashes.append(mtk_512(stringify(fragment)))
 
     original_content = stringify({
-        'type': prepared_content['type'],
-        'trace': prepared_content['trace'],
+        'type': content['type'],
+        'trace': content['trace'],
         'fragment_hashes': sorted(fragment_hashes),
-        'salt': prepared_content['salt']
+        'salt': content['salt']
     })
 
     return mtk_512(original_content)
@@ -93,3 +93,10 @@ def generate_private_key(password):
     with open(f'{private_key.address}.json', 'w') as output_file:
         json.dump(private_key_dict, output_file)
     return private_key_dict
+
+
+def get_tx_signable_content(version, nodecode, from_, cthash):
+    if isinstance(from_, list):
+        from_ = ''.join(from_)
+    signable_content = f'{version}{nodecode}{from_}{cthash}'
+    return signable_content
