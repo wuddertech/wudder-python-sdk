@@ -44,7 +44,7 @@ class Event:
 
     def __init__(self,
                  fragments=None,
-                 trace=None,
+                 trace: str = None,
                  operation_type: str = None,
                  salt: str = None,
                  event_dict: dict = None):
@@ -56,9 +56,6 @@ class Event:
             fragments = [fragments]
         self.fragments = fragments
 
-        if isinstance(trace, list):
-            trace = [trace]
-            raise NotImplementedError
         self.trace = trace
 
         if operation_type is None:
@@ -122,7 +119,7 @@ class Wudder:
                 }
             }
         '''
-        variables = {'user': {'email': email, 'ethAccount': utils.stringify(private_key)}, 'password': password}
+        variables = {'user': {'email': email, 'ethAccount': utils.ordered_stringify(private_key)}, 'password': password}
         _, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
 
         if errors:
@@ -156,7 +153,7 @@ class Wudder:
             }
         '''
         if isinstance(private_key, dict):
-            private_key = utils.stringify(private_key)
+            private_key = utils.ordered_stringify(private_key)
         variables = {'user': {'ethAccount': private_key}}
         self.graphql.execute(mutation, variables)
 
@@ -191,19 +188,24 @@ class Wudder:
             raise AuthError
 
     def create_event(self, title, fragments, trace=None, operation=None):
-        tx_str, _ = self._format_event(title, fragments, trace, operation)
+        tx_dict, _ = self._format_event(title, fragments, trace, operation)
         signature = ''
         if self.web3 is not None:
-            tx = json.loads(tx_str)
-            if 'from' not in tx:
-                tx['from'] = ''
-            signature = self._get_signature(tx['version'], tx['nodecode'], tx['from'], tx['cthash'])
+            signature, tx_str = self._get_signature(tx_dict)
         evhash = self._send_event(tx_str, signature)
         return evhash
 
     def check_sighash(self, sighash, event, version=1, nodecode=1):
         cthash = utils.cthash(event.dict)
-        obtained_sighash = self._get_sighash(version, nodecode, event.trace, cthash)
+        tx_dict = {'cthash': cthash, 'nodecode': nodecode, 'version': version}
+
+        if event.trace:
+            if not isinstance(event.trace, list):
+                event.trace = [event.trace]
+            tx_dict['from'] = event.trace
+
+        obtained_sighash = self._get_sighash(tx_dict)
+
         if obtained_sighash == sighash:
             return True
         return False
@@ -340,7 +342,7 @@ class Wudder:
         self.refresh_token = data['refreshToken']['refreshToken']
         self._update_headers()
 
-    def _format_event(self, title, fragments, trace=None, operation=None):
+    def _format_event(self, title, fragments, trace, operation):
         event = Event(fragments, trace, operation)
         mutation = '''
             mutation FormatTransaction($content: ContentInput!, $displayName: String!){
@@ -354,8 +356,8 @@ class Wudder:
         data, errors = self.graphql.execute(mutation, variables)
         self._manage_common_errors(errors)
 
-        formatted_transaction = data['formatTransaction']['formattedTransaction']
-        prepared_content = data['formatTransaction']['preparedContent']
+        formatted_transaction = json.loads(data['formatTransaction']['formattedTransaction'])
+        prepared_content = json.loads(data['formatTransaction']['preparedContent'])
         return formatted_transaction, prepared_content
 
     def _send_event(self, tx_str, signature=''):
@@ -384,14 +386,16 @@ class Wudder:
         elif errors[0]['code'] == 401:
             raise AuthError
 
-        raise UnknownError
+        raise UnexpectedError(errors[0]['message'])
 
-    def _get_sighash(self, version, nodecode, from_, cthash):
-        signature = self._get_signature(version, nodecode, from_, cthash)
+    def _get_sighash(self, tx_dict):
+        signature, _ = self._get_signature(tx_dict)
         sighash = utils.mtk_512(signature)
         return sighash
 
-    def _get_signature(self, version, nodecode, from_, cthash):
-        signable_content = utils.get_tx_signable_content(version, nodecode, from_, cthash)
-        signature = self.web3.sign(signable_content)
-        return signature
+    def _get_signature(self, tx_dict):
+        if isinstance(tx_dict, str):
+            tx_dict = json.loads(tx_dict)
+        tx_str = utils.ordered_stringify(tx_dict)
+        signature = self.web3.sign(tx_str)
+        return signature, tx_str

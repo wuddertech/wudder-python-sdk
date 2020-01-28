@@ -17,5 +17,6 @@ class SignupError(Exception):
 class RateLimitExceededError(Exception):
     pass
 
-class UnknownError(Exception):
+
+class UnexpectedError(Exception):
     pass

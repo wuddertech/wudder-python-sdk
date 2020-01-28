@@ -26,7 +26,7 @@ def mtk_256(text: str):
     return _blake2b_256(_sha3_512(text) + text)
 
 
-def stringify(unordered_dict: dict):
+def ordered_stringify(unordered_dict: dict):
     private_keys = sorted(list(unordered_dict.keys()))
     new_dict = dict()
     for private_key in private_keys:
@@ -40,9 +40,9 @@ def cthash(content: dict):
         if isinstance(fragment, str) and len(fragment) == 128:
             fragment_hashes.append(fragment)
         else:
-            fragment_hashes.append(mtk_512(stringify(fragment)))
+            fragment_hashes.append(mtk_512(ordered_stringify(fragment)))
 
-    original_content = stringify({
+    original_content = ordered_stringify({
         'type': content['type'],
         'trace': content['trace'],
         'fragment_hashes': sorted(fragment_hashes),
@@ -93,10 +93,3 @@ def generate_private_key(password):
     with open(f'{private_key.address}.json', 'w') as output_file:
         json.dump(private_key_dict, output_file)
     return private_key_dict
-
-
-def get_tx_signable_content(version, nodecode, from_, cthash):
-    if isinstance(from_, list):
-        from_ = ''.join(from_)
-    signable_content = f'{version}{nodecode}{from_}{cthash}'
-    return signable_content
