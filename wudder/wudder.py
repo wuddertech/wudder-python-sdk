@@ -17,7 +17,12 @@ class Fragment:
     VISIBILITY_PUBLIC = 'public'
     VISIBILITY_PRIVATE = 'private'
 
-    def __init__(self, field=None, value=None, visibility=VISIBILITY_PUBLIC, fragment_dict: dict = None):
+    def __init__(self,
+                 field=None,
+                 value=None,
+                 visibility=VISIBILITY_PUBLIC,
+                 salt: str = None,
+                 fragment_dict: dict = None):
         if fragment_dict is not None:
             self._load_fragment_dict(fragment_dict)
             return
@@ -25,16 +30,36 @@ class Fragment:
         self.field = field
         self.value = value
         self.visibility = visibility
+        self.salt = salt
+
+    def match(self, fragment):
+        if isinstance(fragment, dict):
+            fragment = Fragment(fragment_dict=fragment)
+
+        if self.field != fragment.field:
+            return False
+        if self.value != fragment.value:
+            return False
+        return True
 
     def _load_fragment_dict(self, fragment_dict):
         self.field = fragment_dict['field']
         self.value = fragment_dict['value']
         if 'visibility' in fragment_dict:
             self.visibility = fragment_dict['visibility']
+        else:
+            self.visibility = Fragment.VISIBILITY_PUBLIC
+        if 'salt' in fragment_dict:
+            self.salt = fragment_dict['salt']
+        else:
+            self.salt = None
 
     @property
     def dict(self):
-        return {'field': self.field, 'value': self.value, 'visibility': self.visibility}
+        fragment_dict = {'field': self.field, 'value': self.value, 'visibility': self.visibility}
+        if self.salt is not None:
+            fragment_dict['salt'] = self.salt
+        return fragment_dict
 
 
 class Event:
@@ -42,12 +67,7 @@ class Event:
     TYPE_NEW_TRACE = 'NEW_TRACE'
     TYPE_NEW_EVENT = 'ADD_EVENT'
 
-    def __init__(self,
-                 fragments=None,
-                 trace: str = None,
-                 operation_type: str = None,
-                 salt: str = None,
-                 event_dict: dict = None):
+    def __init__(self, fragments=None, trace: str = None, salt: str = None, event_dict: dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
             return
@@ -57,14 +77,26 @@ class Event:
         self.fragments = fragments
 
         self.trace = trace
-
-        if operation_type is None:
-            operation_type = Event.TYPE_NEW_TRACE
-        self.type = operation_type
+        if self.trace is None:
+            self.type = Event.TYPE_NEW_TRACE
+        else:
+            self.type = Event.TYPE_NEW_EVENT
 
         self.salt = salt
-
         self.proof = None
+
+    def match(self, event):
+        if isinstance(event, dict):
+            event = Event(event_dict=event)
+
+        if self.trace != event.trace:
+            return False
+        if self.type != event.type:
+            return False
+        for self_fragment, event_fragment in zip(self.fragments, event.fragments):
+            if not self_fragment.match(event_fragment):
+                return False
+        return True
 
     def _load_event_dict(self, event_dict):
         self.fragments = event_dict['fragments']
@@ -73,6 +105,8 @@ class Event:
         self.salt = event_dict['salt']
         if 'proof' in event_dict:
             self.proof = event_dict['proof']
+        else:
+            self.proof = None
 
     @property
     def dict(self):
@@ -91,6 +125,10 @@ class Wudder:
 
     DEFAULT_GRAPHQL_ENDPOINT = 'https://api.testnet.wudder.tech/graphql/'
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
+
+    GRAPHN_PROTOCOL_VERSION = 1
+    GRAPHN_NODECODE_CREATE_GRAPH = 1
+    GRAPHN_NODECODE_EXTEND_GRAPH = 2
 
     @staticmethod
     def signup(email, password, private_key_password, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
@@ -187,25 +225,41 @@ class Wudder:
         except ValueError:
             raise AuthError
 
-    def create_event(self, title, fragments, trace=None, operation=None):
-        tx_dict, _ = self._format_event(title, fragments, trace, operation)
+    def create_event(self, title, fragments, trace=None):
+        event = Event(fragments, trace)
+        server_tx, server_event = self._format_event(title, event)
+
+        # Do not trust the server
+        if not event.match(server_event):
+            raise ValueError('event mismatch')
+
+        tx = self.get_tx(server_event)
+        if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
+            raise ValueError('tx mismatch')
+
         signature = ''
         if self.web3 is not None:
-            signature, tx_str = self._get_signature(tx_dict)
+            signature, tx_str = self._get_signature(tx)
         evhash = self._send_event(tx_str, signature)
         return evhash
 
-    def check_sighash(self, sighash, event, version=1, nodecode=1):
+    def get_tx(self, event, version=GRAPHN_PROTOCOL_VERSION):
         cthash = utils.cthash(event.dict)
-        tx_dict = {'cthash': cthash, 'nodecode': nodecode, 'version': version}
+        tx = {'cthash': cthash, 'version': version}
 
+        nodecode = Wudder.GRAPHN_NODECODE_CREATE_GRAPH
         if event.trace:
             if not isinstance(event.trace, list):
                 event.trace = [event.trace]
-            tx_dict['from'] = event.trace
+            tx['from'] = event.trace
+            nodecode = Wudder.GRAPHN_NODECODE_EXTEND_GRAPH
 
-        obtained_sighash = self._get_sighash(tx_dict)
+        tx['nodecode'] = nodecode
+        return tx
 
+    def check_sighash(self, sighash, event):
+        tx = self.get_tx(event)
+        obtained_sighash = self._get_sighash(tx)
         if obtained_sighash == sighash:
             return True
         return False
@@ -342,8 +396,7 @@ class Wudder:
         self.refresh_token = data['refreshToken']['refreshToken']
         self._update_headers()
 
-    def _format_event(self, title, fragments, trace, operation):
-        event = Event(fragments, trace, operation)
+    def _format_event(self, title, event):
         mutation = '''
             mutation FormatTransaction($content: ContentInput!, $displayName: String!){
                 formatTransaction(content: $content, displayName: $displayName){
@@ -356,9 +409,9 @@ class Wudder:
         data, errors = self.graphql.execute(mutation, variables)
         self._manage_common_errors(errors)
 
-        formatted_transaction = json.loads(data['formatTransaction']['formattedTransaction'])
-        prepared_content = json.loads(data['formatTransaction']['preparedContent'])
-        return formatted_transaction, prepared_content
+        tx = json.loads(data['formatTransaction']['formattedTransaction'])
+        event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
+        return tx, event
 
     def _send_event(self, tx_str, signature=''):
         mutation = '''
@@ -388,14 +441,14 @@ class Wudder:
 
         raise UnexpectedError(errors[0]['message'])
 
-    def _get_sighash(self, tx_dict):
-        signature, _ = self._get_signature(tx_dict)
+    def _get_sighash(self, tx):
+        signature, _ = self._get_signature(tx)
         sighash = utils.mtk_512(signature)
         return sighash
 
-    def _get_signature(self, tx_dict):
-        if isinstance(tx_dict, str):
-            tx_dict = json.loads(tx_dict)
-        tx_str = utils.ordered_stringify(tx_dict)
+    def _get_signature(self, tx):
+        if isinstance(tx, str):
+            tx = json.loads(tx)
+        tx_str = utils.ordered_stringify(tx)
         signature = self.web3.sign(tx_str)
         return signature, tx_str
