@@ -67,7 +67,7 @@ class Event:
     TYPE_NEW_TRACE = 'NEW_TRACE'
     TYPE_NEW_EVENT = 'ADD_EVENT'
 
-    def __init__(self, fragments=None, trace: str = None, salt: str = None, event_dict: dict = None):
+    def __init__(self, fragments=None, trace: str = None, salt: str = None, type_: str = None, event_dict: dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
             return
@@ -77,10 +77,14 @@ class Event:
         self.fragments = fragments
 
         self.trace = trace
-        if self.trace is None:
-            self.type = Event.TYPE_NEW_TRACE
+
+        if not type_:
+            if self.trace is None:
+                self.type = Event.TYPE_NEW_TRACE
+            else:
+                self.type = Event.TYPE_NEW_EVENT
         else:
-            self.type = Event.TYPE_NEW_EVENT
+            self.type = type_
 
         self.salt = salt
         self.proof = None
@@ -225,23 +229,16 @@ class Wudder:
         except ValueError:
             raise AuthError
 
-    def create_event(self, title, fragments, trace=None):
-        event = Event(fragments, trace)
-        server_tx, server_event = self._format_event(title, event)
+    def create_proof(self, title, fragments):
+        return self.create_trace(title, fragments)
 
-        # Do not trust the server
-        if not event.match(server_event):
-            raise ValueError('event mismatch')
+    def create_trace(self, title, fragments):
+        type_ = Event.TYPE_NEW_TRACE
+        return self._add_event(title, fragments, type_)
 
-        tx = self.get_tx(server_event)
-        if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
-            raise ValueError('tx mismatch')
-
-        signature = ''
-        if self.web3 is not None:
-            signature, tx_str = self._get_signature(tx)
-        evhash = self._send_event(tx_str, signature)
-        return evhash
+    def add_event(self, trace, title, fragments):
+        type_ = Event.TYPE_NEW_EVENT
+        return self._add_event(title, fragments, type_, trace)
 
     def get_tx(self, event, version=GRAPHN_PROTOCOL_VERSION):
         cthash = utils.cthash(event.dict)
@@ -352,6 +349,24 @@ class Wudder:
             return True
         return False
 
+    def _add_event(self, title, fragments, type_=None, trace=None):
+        event = Event(fragments=fragments, trace=trace, type_=type_)
+        server_tx, server_event = self._format_event(title, event)
+
+        # Do not trust the server
+        if not event.match(server_event):
+            raise ValueError('event mismatch')
+
+        tx = self.get_tx(server_event)
+        if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
+            raise ValueError('tx mismatch')
+
+        signature = ''
+        if self.web3 is not None:
+            signature, tx_str = self._get_signature(tx)
+        evhash = self._send_event(tx_str, signature)
+        return evhash
+
     def _extract_proof_from_graphn_data(self, graphn_data_str):
         graphn_data = json.loads(graphn_data_str)
         proof_dict = {'graphn_proof': graphn_data['proof']}
@@ -430,16 +445,20 @@ class Wudder:
         if not errors:
             return
 
-        if errors[0]['code'] == 429:
-            raise RateLimitExceededError
+        try:
+            if errors[0]['code'] == 429:
+                raise RateLimitExceededError
 
-        if errors[0]['code'] == 404:
-            raise NotFoundError
+            if errors[0]['code'] == 404:
+                raise NotFoundError
 
-        elif errors[0]['code'] == 401:
-            raise AuthError
+            elif errors[0]['code'] == 401:
+                raise AuthError
 
-        raise UnexpectedError(errors[0]['message'])
+            raise UnexpectedError(errors[0]['message'])
+
+        except KeyError:
+            print(errors[0])
 
     def _get_sighash(self, tx):
         signature, _ = self._get_signature(tx)

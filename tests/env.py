@@ -43,7 +43,29 @@ trace = {
         'originalContent':
         '{"content":{"fragments":[{"field":"clave1","salt":"it0ns8r1m","value":"valor1"},{"field":"clave2","salt":"7upkn2tk1","value":"valor2"}],"salt":"1vtke21rj","trace":null,"type":"NEW_TRACE"},"event_tx":"{\\"cthash\\":\\"b6fc5bbba6188676d7c4e51e20d5c876f6db594047e793eb681969f83179854edcf21fd5cd6a9909924c2aaffee5c987994a8e81f16ee015784a5576d747a379\\",\\"nodecode\\":1,\\"version\\":1}","signature":"7f0d3a1fbc1a6df7a6c2fb28375d3abd9efdcf3b7a1377c2940f3e746d609523057f478be300cdaef3bb5e23a739451a901b632fac150a6988787b2edae1829d"}'
     },
-    'childs': []
+    'childs': [{
+        'evhash':
+        '01d6d0336a562eef8e9348d31e33b85346ce96c5c03290d702f4978495443dfa',
+        'type':
+        'EVENT',
+        'graphnData':
+        '{"hash":"01d6d0336a562eef8e9348d31e33b85346ce96c5c03290d702f4978495443dfa","cthash":"284381f53c0776192b5f594ed2ecb94b12316f0793f3fdbc10cc59b12fca797bf08b9971be7835aa24e52be50949031408a351ca53856bd1260fc74ee8f79ea6","from":["362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef"],"nodecode":2,"sighash":"7a188bc4b28f37dad05a062c9a42c762b1721a42adbbeac00eff89baf77c1559c01e55bb5ff7b908824ac3b8605316e478436ca158c6b74f26ce3fbe7edea9e0","version":1,"block":"ed8ee81cba2e93887b3997356c06b557a5683d3630d6fb109caffc9320df3347","block_proof":"l01d6d0336a562eef8e9348d31e33b85346ce96c5c03290d702f4978495443dfar496767c61a4a56baaf0a16d54a20f01fec74fb9d3b5a0ea4dd2b1b97da5d94ffl25df5f9070ae86bda3066268a100518e95b916364ebfbdc6494ac69db7fab81a","proof":"l01d6d0336a562eef8e9348d31e33b85346ce96c5c03290d702f4978495443dfar496767c61a4a56baaf0a16d54a20f01fec74fb9d3b5a0ea4dd2b1b97da5d94ffl25df5f9070ae86bda3066268a100518e95b916364ebfbdc6494ac69db7fab81a"}',
+        'displayName':
+        'Title',
+        'originalContent':
+        '{"content":{"fragments":[{"field":"clave","salt":"rqoewr9xjv","value":"valor"}],"salt":"7fyduvvjx","trace":"362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef","type":"ADD_EVENT"},"event_tx":"{\\"cthash\\":\\"284381f53c0776192b5f594ed2ecb94b12316f0793f3fdbc10cc59b12fca797bf08b9971be7835aa24e52be50949031408a351ca53856bd1260fc74ee8f79ea6\\",\\"from\\":[\\"362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef\\"],\\"nodecode\\":2,\\"version\\":1}","signature":"205b48e11ef94a42b4019ea069ddfef80d485f270db2e86306a360381b36354e046fcc571f76bde0c296c4688abbdc747eecf6585b604eb1aecddf51336dea491b"}'
+    }, {
+        'evhash':
+        '4683af8868a86cac7ebb5dcdf16f25237dfd93a07177938e4d0cee3d9696f85d',
+        'type':
+        'EVENT',
+        'graphnData':
+        '{"hash":"4683af8868a86cac7ebb5dcdf16f25237dfd93a07177938e4d0cee3d9696f85d","cthash":"7835bc5bb17b8465b4601d7538b34bcddf213e80d7dbb65a970b71839e4732a2c82aa236bd547a9a619344c3e76f02bda59e9637e211a6e88ed3878b49dc62d0","from":["362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef"],"nodecode":2,"sighash":"cc5802a87979994260e53baeb4e369a40e82e190a62629122ba971d1128751acd5ead78bdee2aea5296964dc50ae6e41c324e9b1ac27d2fdeb9c24e46075cd07","version":1,"block":"6c7c7cd73486698916a847e33a1c8ad399b7f8f163b66a777133724008a096c5","block_proof":"l4683af8868a86cac7ebb5dcdf16f25237dfd93a07177938e4d0cee3d9696f85dr82bbd38e45b4e5dc4ba479ad11807479c98f2a696be5be4b45d18e6491a5469cr65b692ecdf5bab1e40b27a8a3956b85dd0a9921a2b66ffd131d6f1c3226c6cfala60015f23e4bc5b22aaeae8cd17cf31017d5e8798166937c9e294e28df37cabc","proof":"l4683af8868a86cac7ebb5dcdf16f25237dfd93a07177938e4d0cee3d9696f85dr82bbd38e45b4e5dc4ba479ad11807479c98f2a696be5be4b45d18e6491a5469cr65b692ecdf5bab1e40b27a8a3956b85dd0a9921a2b66ffd131d6f1c3226c6cfala60015f23e4bc5b22aaeae8cd17cf31017d5e8798166937c9e294e28df37cabc"}',
+        'displayName':
+        'Title',
+        'originalContent':
+        '{"content":{"fragments":[{"field":"clave","salt":"nuf610hky","value":"valor"}],"salt":"e10oqimle","trace":"362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef","type":"ADD_EVENT"},"event_tx":"{\\"cthash\\":\\"7835bc5bb17b8465b4601d7538b34bcddf213e80d7dbb65a970b71839e4732a2c82aa236bd547a9a619344c3e76f02bda59e9637e211a6e88ed3878b49dc62d0\\",\\"from\\":[\\"362b2cf977ea0450252b8f95a15d89543ebc3b9db6b85c78f708e7c7195879ef\\"],\\"nodecode\\":2,\\"version\\":1}","signature":"ad9aef0c1ad7b0165417894cb8b5e41dad60a583bb4bf8bdb172aaf40fb5e1c77beaf6053f7763d6afa0bb54ada8a63106b5f97a33abed37c0751fd5115f56031c"}'
+    }]
 }
 
 evhash2 = '5dba595e536d15c68e024b9ee8abc5fe47395ed9387cad74b88c11fe1f76433b'

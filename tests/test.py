@@ -20,8 +20,16 @@ class TestWudder(unittest.TestCase):
     evhash2 = env.evhash2
     sighash = env.sighash
 
-    def test_create_event(self):
-        evhash = self.wudder.create_event('Title', Fragment('clave', 'valor'))
+    def test_create_proof(self):
+        evhash = self.wudder.create_proof('Title', Fragment('clave', 'valor'))
+        self.assertEqual(len(evhash), 64)
+
+    def test_create_trace(self):
+        evhash = self.wudder.create_trace('Title', Fragment('clave', 'valor'))
+        self.assertEqual(len(evhash), 64)
+
+    def test_add_event(self):
+        evhash = self.wudder.add_event(self.evhash2, 'Title', Fragment('clave', 'valor'))
         self.assertEqual(len(evhash), 64)
 
     def test_get_event(self):
