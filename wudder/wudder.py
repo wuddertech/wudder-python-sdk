@@ -11,6 +11,24 @@ import requests
 from os import environ
 from easyweb3 import EasyWeb3
 
+RETRY_ATTEMPTS = 3
+RETRY_INTERVAL = 1
+
+
+def retry(method):
+    def _try_except(self, *args, **kwargs):
+        remaining_attempts = RETRY_ATTEMPTS
+        while remaining_attempts > 0:
+            try:
+                return method(self, *args, **kwargs)
+                remaining_attempts = 0
+            except Exception as e:
+                remaining_attempts -= 1
+                print(e)
+                time.sleep(RETRY_INTERVAL)
+
+    return _try_except
+
 
 class Fragment:
 
@@ -153,6 +171,7 @@ class Wudder:
                     remaining_attempts -= 1
                     time.sleep(5)
 
+    @retry
     def _create_user(email, password, private_key, graphql_endpoint):
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
@@ -186,6 +205,7 @@ class Wudder:
     def private_key(self):
         return self._private_key
 
+    @retry
     def update_private_key(self, private_key):
         mutation = '''
             mutation UpdateUser($user: UserInput!){
@@ -199,6 +219,7 @@ class Wudder:
         variables = {'user': {'ethAccount': private_key}}
         self.graphql.execute(mutation, variables)
 
+    @retry
     def _login(self, email, password, private_key_password):
         mutation = '''
             mutation Login($email: String!, $password: String!) {
@@ -261,6 +282,7 @@ class Wudder:
             return True
         return False
 
+    @retry
     def get_event(self, evhash):
         query = '''
             query GetEvidence($evhash: String!){
@@ -290,6 +312,7 @@ class Wudder:
         event = Event(event_dict=event_dict)
         return event
 
+    @retry
     def get_trace(self, evhash):
         query = '''
             query GetTrace($evhash: String!){
@@ -320,6 +343,7 @@ class Wudder:
 
         return data['trace']
 
+    @retry
     def get_proof(self, evhash, force_tmp_l2_proof=False):
         query = '''
             query GetEvidence($evhash: String!){
@@ -394,6 +418,7 @@ class Wudder:
     def _update_headers(self):
         self.graphql.set_headers({'x-jwt-token': self.token})
 
+    @retry
     def _refresh(self):
         mutation = '''
             mutation RefreshToken($refreshToken: String!) {
@@ -411,6 +436,7 @@ class Wudder:
         self.refresh_token = data['refreshToken']['refreshToken']
         self._update_headers()
 
+    @retry
     def _format_event(self, title, event):
         mutation = '''
             mutation FormatTransaction($content: ContentInput!, $displayName: String!){
@@ -428,6 +454,7 @@ class Wudder:
         event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
         return tx, event
 
+    @retry
     def _send_event(self, tx_str, signature=''):
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!){

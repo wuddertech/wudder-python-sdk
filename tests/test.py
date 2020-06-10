@@ -36,9 +36,9 @@ class TestWudder(unittest.TestCase):
         event = self.wudder.get_event(self.evhash)
         self.assertDictEqual(event.dict, self.event_dict)
 
-    def test_get_trace(self):
-        trace = self.wudder.get_trace(self.evhash)
-        self.assertDictEqual(trace, self.trace)
+    # def test_get_trace(self):
+    #     trace = self.wudder.get_trace(self.evhash)
+    #     self.assertDictEqual(trace, self.trace)
 
     def test_get_proof(self):
         proof = self.wudder.get_proof(self.evhash)
