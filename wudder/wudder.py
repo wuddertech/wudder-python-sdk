@@ -21,10 +21,11 @@ def retry(method):
         while remaining_attempts > 0:
             try:
                 return method(self, *args, **kwargs)
-                remaining_attempts = 0
             except Exception as e:
+                if remaining_attempts == 1:
+                    import traceback
+                    traceback.print_exc()
                 remaining_attempts -= 1
-                print(e)
                 time.sleep(RETRY_INTERVAL)
 
     return _try_except
