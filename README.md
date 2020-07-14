@@ -45,7 +45,7 @@ evhash = wudder.create_trace('Title', [Fragment('key1', 'value1'), Fragment('key
 
 ### Add event to trace
 ```python
-evhash = wudder.add_event('c106851cc1ce91b68254c1e82b2b5e2dbd97471ec7d7ffb6f55aeadba7683a04', 'Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
+evhash2 = wudder.add_event(evhash, 'Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
 ```
 
 ### Create proof
@@ -76,12 +76,6 @@ proof = wudder.get_proof(evhash)
 
 ```python
 wudder.check_ethereum_proof(proof['graphn_proof'], proof['anchor_txs']['ethereum']))
-```
-
-### Check Graphn proof
-
-```python
-wudder.check_graphn_proof()
 ```
 
 ### Create a local backup of the private key
