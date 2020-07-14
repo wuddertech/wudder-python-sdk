@@ -8,6 +8,7 @@ import json
 from threading import Thread
 import time
 import requests
+import unidecode
 from os import environ
 from easyweb3 import EasyWeb3
 
@@ -46,7 +47,7 @@ class Fragment:
             self._load_fragment_dict(fragment_dict)
             return
 
-        self.field = field
+        self.field = unidecode.unidecode(field)
         self.value = value
         self.visibility = visibility
         self.salt = salt
