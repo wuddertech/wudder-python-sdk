@@ -25,4 +25,4 @@ setup(
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    install_requires=['requests', 'easygraphql', 'easyweb3', 'unidecode==1.1.1'])  # Dependencies
+    install_requires=['requests', 'easygraphql', 'easyweb3'])

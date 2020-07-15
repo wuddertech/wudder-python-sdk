@@ -8,7 +8,6 @@ import json
 from threading import Thread
 import time
 import requests
-import unidecode
 from os import environ
 from easyweb3 import EasyWeb3
 
@@ -47,7 +46,7 @@ class Fragment:
             self._load_fragment_dict(fragment_dict)
             return
 
-        self.field = unidecode.unidecode(field)
+        self.field = field
         self.value = value
         self.visibility = visibility
         self.salt = salt
@@ -385,7 +384,7 @@ class Wudder:
 
         tx = self.get_tx(server_event)
         if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
-            raise ValueError('tx mismatch')
+            raise ValueError(f'tx mismatch: {server_tx} vs. {tx}')
 
         signature = ''
         if self.web3 is not None:

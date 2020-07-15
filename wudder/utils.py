@@ -31,10 +31,11 @@ def ordered_stringify(unordered_dict: dict):
     new_dict = dict()
     for private_key in private_keys:
         new_dict[private_key] = unordered_dict[private_key]
-    return json.dumps(new_dict, separators=(',', ':'))
+    return json.dumps(new_dict, separators=(',', ':'), ensure_ascii=False)
 
 
 def cthash(content: dict):
+    print(content['fragments'])
     fragment_hashes = []
     for fragment in content['fragments']:
         if isinstance(fragment, str) and len(fragment) == 128:
