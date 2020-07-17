@@ -35,7 +35,6 @@ def ordered_stringify(unordered_dict: dict):
 
 
 def cthash(content: dict):
-    print(content['fragments'])
     fragment_hashes = []
     for fragment in content['fragments']:
         if isinstance(fragment, str) and len(fragment) == 128:
