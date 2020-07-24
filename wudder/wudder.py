@@ -10,6 +10,7 @@ import time
 import requests
 from os import environ
 from easyweb3 import EasyWeb3
+import traceback
 
 RETRY_ATTEMPTS = 3
 RETRY_INTERVAL = 1
@@ -23,8 +24,7 @@ def retry(method):
                 return method(self, *args, **kwargs)
             except Exception as e:
                 if remaining_attempts == 1:
-                    import traceback
-                    traceback.print_exc()
+                    traceback.print_exc(e)
                 remaining_attempts -= 1
                 time.sleep(RETRY_INTERVAL)
 
@@ -86,7 +86,12 @@ class Event:
     TYPE_NEW_TRACE = 'NEW_TRACE'
     TYPE_NEW_EVENT = 'ADD_EVENT'
 
-    def __init__(self, fragments=None, trace: str = None, salt: str = None, type_: str = None, event_dict: dict = None):
+    def __init__(self,
+                 fragments=None,
+                 trace: str = None,
+                 salt: str = None,
+                 type_: str = None,
+                 event_dict: dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
             return
@@ -154,24 +159,13 @@ class Wudder:
     GRAPHN_NODECODE_EXTEND_GRAPH = 2
 
     @staticmethod
+    @retry
     def signup(email, password, private_key_password, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
         private_key = utils.generate_private_key(private_key_password)
         EasyWeb3(private_key, private_key_password)
         Wudder._create_user(email, password, private_key, graphql_endpoint)
 
-        remaining_attempts = 5
-        done = False
-        while not done:
-            try:
-                Wudder(email, password, private_key_password)
-                done = True
-            except NotFoundError:
-                print('User creation failed, retrying...')
-                if remaining_attempts > 0:
-                    Wudder._create_user(email, password, private_key, graphql_endpoint)
-                    remaining_attempts -= 1
-                    time.sleep(5)
-
+    @staticmethod
     @retry
     def _create_user(email, password, private_key, graphql_endpoint):
         mutation = '''
@@ -181,7 +175,13 @@ class Wudder:
                 }
             }
         '''
-        variables = {'user': {'email': email, 'ethAccount': utils.ordered_stringify(private_key)}, 'password': password}
+        variables = {
+            'user': {
+                'email': email,
+                'ethAccount': utils.ordered_stringify(private_key)
+            },
+            'password': password
+        }
         _, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
 
         if errors:
@@ -396,18 +396,27 @@ class Wudder:
         graphn_data = json.loads(graphn_data_str)
         proof_dict = {'graphn_proof': graphn_data['proof']}
         if 'prefixes' in graphn_data and 'ethereum' in graphn_data['prefixes']:
-            anchor_txs = {private_key: value['tx_hash'] for private_key, value in graphn_data['prefixes'].items()}
+            anchor_txs = {
+                private_key: value['tx_hash']
+                for private_key, value in graphn_data['prefixes'].items()
+            }
             proof_dict['anchor_txs'] = anchor_txs
         return proof_dict
 
     def _check_ethereum_root_hash(self, anchor_tx, root_hash):
-        eth_root_hash = self._get_ethereum_tx_input(anchor_tx, self.ethereum_endpoint)[2:]  # remove 0x
+        eth_root_hash = self._get_ethereum_tx_input(anchor_tx,
+                                                    self.ethereum_endpoint)[2:]  # remove 0x
         if eth_root_hash == root_hash:
             return True
         return False
 
     def _get_ethereum_tx_input(self, tx_hash, endpoint):
-        payload = {"jsonrpc": "2.0", "method": "eth_getTransactionByHash", "params": [tx_hash], "id": 1}
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "eth_getTransactionByHash",
+            "params": [tx_hash],
+            "id": 1
+        }
         headers = {'Content-Type': 'application/json'}
         return requests.post(endpoint, json=payload, headers=headers).json()['result']['input']
 
