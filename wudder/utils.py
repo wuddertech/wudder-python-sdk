@@ -4,6 +4,7 @@
 import hashlib
 import json
 from easyweb3 import EasyWeb3
+from os import makedirs
 
 
 def _blake2b_256(text: str):
@@ -90,6 +91,10 @@ def get_root_hash(proof: str):
 def generate_private_key(password):
     private_key = EasyWeb3().web3.eth.account.create()
     private_key_dict = private_key.encrypt(password)
-    with open(f'{private_key.address}.json', 'w') as output_file:
+    try:
+        makedirs('./private-keys')
+    except FileExistsError:
+        pass
+    with open(f'./private-keys/{private_key.address}.json', 'w') as output_file:
         json.dump(private_key_dict, output_file)
     return private_key_dict
