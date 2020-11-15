@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from . import utils
-from .errors import *
+from . import errors
 from easygraphql import GraphQL
 import json
 from threading import Thread
@@ -151,12 +151,13 @@ class Event:
 
 class Wudder:
 
-    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.testnet.wudder.tech/graphql/'
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.phoenix.wudder.tech/graphql/'
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
-    GRAPHN_PROTOCOL_VERSION = 1
-    GRAPHN_NODECODE_CREATE_GRAPH = 1
-    GRAPHN_NODECODE_EXTEND_GRAPH = 2
+    GRAPHN_PROTOCOL_VERSION = 3
+    GRAPHN_NODECODE_CREATE_GRAPH = 0
+    GRAPHN_NODECODE_EXTEND_GRAPH = 1
+    GRAPHN_NODECODE_VALIDATE_NODE = 2
 
     @staticmethod
     @retry
@@ -185,7 +186,7 @@ class Wudder:
         _, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
 
         if errors:
-            raise SignupError
+            raise errors.SignupError
 
     def __init__(self,
                  email,
@@ -249,7 +250,7 @@ class Wudder:
         try:
             self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
-            raise AuthError
+            raise errors.AuthError
 
     def create_proof(self, title, fragments):
         return self.create_trace(title, fragments)
@@ -300,7 +301,7 @@ class Wudder:
         self._manage_common_errors(errors)
 
         if data['evidence'] is None:
-            raise NotFoundError
+            raise errors.NotFoundError
 
         original_content = json.loads(data['evidence']['originalContent'])['content']
 
@@ -340,7 +341,7 @@ class Wudder:
         self._manage_common_errors(errors)
 
         if data['trace'] is None:
-            raise NotFoundError
+            raise errors.NotFoundError
 
         return data['trace']
 
@@ -358,7 +359,7 @@ class Wudder:
         self._manage_common_errors(errors)
 
         if data['evidence'] is None or data['evidence']['graphnData'] is None:
-            raise NotFoundError
+            raise errors.NotFoundError
 
         if 'graphnData' in data['evidence']:
             proof_dict = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
@@ -375,6 +376,7 @@ class Wudder:
         return False
 
     def _add_event(self, title, fragments, type_=None, trace=None):
+        # TODO CHECK TIMESTAMP
         event = Event(fragments=fragments, trace=trace, type_=type_)
         server_tx, server_event = self._format_event(title, event)
 
@@ -466,6 +468,7 @@ class Wudder:
 
     @retry
     def _send_event(self, tx_str, signature=''):
+        # TODO ADD SIGHASH OR SIGNATURE IN THE BACKEND
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!){
                 createEvidence(evidence: $evidence){
@@ -484,22 +487,22 @@ class Wudder:
 
         try:
             if errors[0]['code'] == 429:
-                raise RateLimitExceededError
+                raise errors.RateLimitExceededError
 
             if errors[0]['code'] == 404:
-                raise NotFoundError
+                raise errors.NotFoundError
 
             elif errors[0]['code'] == 401:
-                raise AuthError
+                raise errors.AuthError
 
-            raise UnexpectedError(errors[0]['message'])
+            raise errors.UnexpectedError(errors[0]['message'])
 
         except KeyError:
             print(errors[0])
 
     def _get_sighash(self, tx):
         signature, _ = self._get_signature(tx)
-        sighash = utils.mtk_512(signature)
+        sighash = utils.sha3_512(signature)
         return sighash
 
     def _get_signature(self, tx):
