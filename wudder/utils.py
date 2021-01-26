@@ -5,13 +5,14 @@ import hashlib
 import json
 from easyweb3 import EasyWeb3
 from os import makedirs
+import time
 
 
 def sha3_512(text: str) -> str:
     return hashlib.sha3_512(text.encode('utf-8')).hexdigest()
 
 
-def ordered_stringify(unordered_dict: dict):
+def ordered_stringify(unordered_dict: dict) -> str:
     private_keys = sorted(list(unordered_dict.keys()))
     new_dict = dict()
     for private_key in private_keys:
@@ -19,7 +20,7 @@ def ordered_stringify(unordered_dict: dict):
     return json.dumps(new_dict, separators=(',', ':'), ensure_ascii=False)
 
 
-def cthash(content: dict):
+def cthash(content: dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
         if isinstance(fragment, str) and len(fragment) == 128:
@@ -71,7 +72,7 @@ def get_root_hash(proof: str) -> str:
         return root_hash
 
 
-def generate_private_key(password):
+def generate_private_key(password: str) -> dict:
     private_key = EasyWeb3().web3.eth.account.create()
     private_key_dict = private_key.encrypt(password)
     try:
@@ -81,3 +82,7 @@ def generate_private_key(password):
     with open(f'./private-keys/{private_key.address}.json', 'w') as output_file:
         json.dump(private_key_dict, output_file)
     return private_key_dict
+
+
+def get_timestamp_ms() -> int:
+    return int(round(time.time() * 1000))

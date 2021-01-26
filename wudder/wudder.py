@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from . import utils
-from . import errors
+from . import exceptions
+from . import graphn
 from easygraphql import GraphQL
 import json
 from threading import Thread
@@ -15,24 +16,29 @@ import traceback
 RETRY_ATTEMPTS = 3
 RETRY_INTERVAL = 1
 
+# TODO
+# - get_tx
+# - timestamp evento
+# - evento simple
+# - preparar tx -> url, etc
+# - crear sin comprobar
+
 
 def retry(method):
     def _try_except(self, *args, **kwargs):
         remaining_attempts = RETRY_ATTEMPTS
-        while remaining_attempts > 0:
+        while remaining_attempts > 1:
             try:
                 return method(self, *args, **kwargs)
-            except Exception as e:
-                if remaining_attempts == 1:
-                    traceback.print_exc(e)
+            except Exception:
                 remaining_attempts -= 1
                 time.sleep(RETRY_INTERVAL)
+        return method(self, *args, **kwargs)
 
     return _try_except
 
 
 class Fragment:
-
     VISIBILITY_PUBLIC = 'public'
     VISIBILITY_PRIVATE = 'private'
 
@@ -57,6 +63,7 @@ class Fragment:
 
         if self.field != fragment.field:
             return False
+
         if self.value != fragment.value:
             return False
         return True
@@ -82,15 +89,12 @@ class Fragment:
 
 
 class Event:
-
-    TYPE_NEW_TRACE = 'NEW_TRACE'
-    TYPE_NEW_EVENT = 'ADD_EVENT'
-
     def __init__(self,
                  fragments=None,
                  trace: str = None,
+                 event_type: str = None,
+                 timestamp: int = None,
                  salt: str = None,
-                 type_: str = None,
                  event_dict: dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
@@ -100,37 +104,54 @@ class Event:
             fragments = [fragments]
         self.fragments = fragments
 
-        self.trace = trace
-
-        if not type_:
-            if self.trace is None:
-                self.type = Event.TYPE_NEW_TRACE
-            else:
-                self.type = Event.TYPE_NEW_EVENT
-        else:
-            self.type = type_
-
+        self._set_trace(trace)
         self.salt = salt
+
+        self.type = event_type
+        if self.type is None:
+            if self.trace is None:
+                self.type = EventTypes.TRACE
+            else:
+                self.type = EventTypes.ADD_EVENT
+
+        if timestamp is None:
+            self.timestamp = utils.get_timestamp_ms()
+
         self.proof = None
 
     def match(self, event):
         if isinstance(event, dict):
             event = Event(event_dict=event)
 
-        if self.trace != event.trace:
-            return False
-        if self.type != event.type:
-            return False
         for self_fragment, event_fragment in zip(self.fragments, event.fragments):
             if not self_fragment.match(event_fragment):
                 return False
+
+        if self.trace != event.trace:
+            return False
+
+        if self.type != event.type:
+            return False
+
+        if self.timestamp != event.timestamp:
+            return False
+
+        # Salt is added by the server
+
         return True
+
+    def _set_trace(self, trace):
+        if trace is None:
+            trace = graphn.ZEROS_HASH
+        self.trace = trace
 
     def _load_event_dict(self, event_dict):
         self.fragments = event_dict['fragments']
-        self.trace = event_dict['trace']
+        self._set_trace(event_dict['trace'])
         self.type = event_dict['type']
         self.salt = event_dict['salt']
+        self.timestamp = event_dict['timestamp']
+
         if 'proof' in event_dict:
             self.proof = event_dict['proof']
         else:
@@ -143,21 +164,27 @@ class Event:
             if isinstance(fragment, Fragment):
                 fragment = fragment.dict
             fragments.append(fragment)
-        event_dict = {'fragments': fragments, 'trace': self.trace, 'type': self.type}
+        event_dict = {
+            'fragments': fragments,
+            'trace': self.trace,
+            'type': self.type,
+            'timestamp': self.timestamp
+        }
         if self.salt is not None:
             event_dict['salt'] = self.salt
         return event_dict
 
 
-class Wudder:
+class EventTypes:
+    TRACE = 'TRACE'
+    ADD_EVENT = 'ADD_EVENT'
+    VALIDATE = 'VALIDATE'
+    FILE = 'FILE'
 
+
+class Wudder:
     DEFAULT_GRAPHQL_ENDPOINT = 'https://api.phoenix.wudder.tech/graphql/'
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
-
-    GRAPHN_PROTOCOL_VERSION = 3
-    GRAPHN_NODECODE_CREATE_GRAPH = 0
-    GRAPHN_NODECODE_EXTEND_GRAPH = 1
-    GRAPHN_NODECODE_VALIDATE_NODE = 2
 
     @staticmethod
     @retry
@@ -186,7 +213,7 @@ class Wudder:
         _, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
 
         if errors:
-            raise errors.SignupError
+            raise exceptions.SignupError
 
     def __init__(self,
                  email,
@@ -234,7 +261,7 @@ class Wudder:
         '''
         variables = {'email': email, 'password': password}
         data, errors = self.graphql.execute(mutation, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         self.token = data['login']['token']
         self.refresh_token = data['login']['refreshToken']
@@ -250,37 +277,45 @@ class Wudder:
         try:
             self.web3 = EasyWeb3(self._private_key, private_key_password)
         except ValueError:
-            raise errors.AuthError
+            raise exceptions.AuthError
 
     def create_proof(self, title, fragments):
         return self.create_trace(title, fragments)
 
     def create_trace(self, title, fragments):
-        type_ = Event.TYPE_NEW_TRACE
-        return self._add_event(title, fragments, type_)
+        return self._add_event(title, fragments, EventTypes.TRACE)
 
     def add_event(self, trace, title, fragments):
-        type_ = Event.TYPE_NEW_EVENT
-        return self._add_event(title, fragments, type_, trace)
+        return self._add_event(title, fragments, EventTypes.ADD_EVENT, trace)
 
-    def get_tx(self, event, version=GRAPHN_PROTOCOL_VERSION):
+    def get_tx(self, event: Event) -> dict:
         cthash = utils.cthash(event.dict)
-        tx = {'cthash': cthash, 'version': version}
+        tx = {'cthash': cthash, 'version': graphn.PROTOCOL_VERSION}
 
-        nodecode = Wudder.GRAPHN_NODECODE_CREATE_GRAPH
-        if event.trace:
-            if not isinstance(event.trace, list):
-                event.trace = [event.trace]
-            tx['from'] = event.trace
-            nodecode = Wudder.GRAPHN_NODECODE_EXTEND_GRAPH
+        tx['from'] = [event.trace]
 
-        tx['nodecode'] = nodecode
+        if event.type == EventTypes.TRACE:
+            tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
+        elif event.type == EventTypes.ADD_EVENT:
+            tx['nodecode'] = graphn.Nodecodes.EXTEND_GRAPH
+        elif event.type == EventTypes.VALIDATE:
+            tx['nodecode'] = graphn.Nodecodes.VALIDATE_NODE
+        elif event.type == EventTypes.FILE:
+            tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
+
         return tx
 
     def check_sighash(self, sighash, event):
         tx = self.get_tx(event)
         obtained_sighash = self._get_sighash(tx)
         if obtained_sighash == sighash:
+            return True
+        return False
+
+    def check_signature(self, signature, event):
+        tx = self.get_tx(event)
+        obtained_signature = self._get_signature(tx)
+        if obtained_signature == signature:
             return True
         return False
 
@@ -298,19 +333,20 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         if data['evidence'] is None:
-            raise errors.NotFoundError
+            raise exceptions.NotFoundError
 
         original_content = json.loads(data['evidence']['originalContent'])['content']
-
         event_dict = {
             'type': original_content['type'],
             'trace': original_content['trace'],
             'fragments': original_content['fragments'],
+            'timestamp': original_content['timestamp'],
             'salt': original_content['salt']
         }
+
         event = Event(event_dict=event_dict)
         return event
 
@@ -338,10 +374,10 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         if data['trace'] is None:
-            raise errors.NotFoundError
+            raise exceptions.NotFoundError
 
         return data['trace']
 
@@ -356,10 +392,10 @@ class Wudder:
         '''
         variables = {'evhash': evhash}
         data, errors = self.graphql.execute(query, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         if data['evidence'] is None or data['evidence']['graphnData'] is None:
-            raise errors.NotFoundError
+            raise exceptions.NotFoundError
 
         if 'graphnData' in data['evidence']:
             proof_dict = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
@@ -375,22 +411,24 @@ class Wudder:
             return True
         return False
 
-    def _add_event(self, title, fragments, type_=None, trace=None):
-        # TODO CHECK TIMESTAMP
-        event = Event(fragments=fragments, trace=trace, type_=type_)
+    def _add_event(self, title, fragments, event_type=None, trace=None):
+        event = Event(fragments=fragments, trace=trace, event_type=event_type)
         server_tx, server_event = self._format_event(title, event)
 
         # Do not trust the server
         if not event.match(server_event):
-            raise ValueError('event mismatch')
+            raise ValueError(f'event mismatch\n{event.dict}\nvs.\n{server_event.dict}')
 
         tx = self.get_tx(server_event)
         if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
-            raise ValueError(f'tx mismatch: {server_tx} vs. {tx}')
+            raise ValueError(
+                f'tx mismatch\n{utils.ordered_stringify(server_tx)}\nvs.\n{utils.ordered_stringify(tx)}'
+            )
 
         signature = ''
         if self.web3 is not None:
-            signature, tx_str = self._get_signature(tx)
+            signature = self._get_signature(tx)
+        tx_str = utils.ordered_stringify(tx)
         evhash = self._send_event(tx_str, signature)
         return evhash
 
@@ -442,7 +480,7 @@ class Wudder:
         '''
         variables = {'refreshToken': self.refresh_token}
         data, errors = self.graphql.execute(mutation, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         self.token = data['refreshToken']['token']
         self.refresh_token = data['refreshToken']['refreshToken']
@@ -460,54 +498,54 @@ class Wudder:
         '''
         variables = {'displayName': title, 'content': event.dict}
         data, errors = self.graphql.execute(mutation, variables)
-        self._manage_common_errors(errors)
+        self._manage_errors(errors)
 
         tx = json.loads(data['formatTransaction']['formattedTransaction'])
         event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
         return tx, event
 
     @retry
-    def _send_event(self, tx_str, signature=''):
-        # TODO ADD SIGHASH OR SIGNATURE IN THE BACKEND
+    def _send_event(self, tx_str: str, signature=''):
         mutation = '''
-            mutation CreateEvidence($evidence: EvidenceInput!){
-                createEvidence(evidence: $evidence){
+            mutation ConfirmPreparedEvidence($evidence: PreparedEvidenceInput!){
+                confirmPreparedEvidence(evidence: $evidence){
                     evhash
                 }
             }
         '''
-        variables = {'evidence': {'event_tx': tx_str, 'signature': signature}}
+        variables = {'evidence': {'preparedEvidence': tx_str, 'signature': signature}}
         data, errors = self.graphql.execute(mutation, variables)
-        self._manage_common_errors(errors)
-        return data['createEvidence']['evhash']
+        self._manage_errors(errors)
+        return data['confirmPreparedEvidence']['evhash']
 
-    def _manage_common_errors(self, errors):
+    def _manage_errors(self, errors):
         if not errors:
             return
 
         try:
             if errors[0]['code'] == 429:
-                raise errors.RateLimitExceededError
+                raise exceptions.RateLimitExceededError(errors[0])
 
             if errors[0]['code'] == 404:
-                raise errors.NotFoundError
+                raise exceptions.NotFoundError(errors[0])
 
-            elif errors[0]['code'] == 401:
-                raise errors.AuthError
+            if errors[0]['code'] == 401:
+                raise exceptions.AuthError(errors[0])
 
-            raise errors.UnexpectedError(errors[0]['message'])
+            if errors[0]['code'] == 400:
+                raise exceptions.BadRequestError(errors[0])
 
         except KeyError:
-            print(errors[0])
-
-    def _get_sighash(self, tx):
-        signature, _ = self._get_signature(tx)
-        sighash = utils.sha3_512(signature)
-        return sighash
+            raise exceptions.UnexpectedError(errors[0])
 
     def _get_signature(self, tx):
         if isinstance(tx, str):
             tx = json.loads(tx)
         tx_str = utils.ordered_stringify(tx)
         signature = self.web3.sign(tx_str)
-        return signature, tx_str
+        return signature
+
+    def _get_sighash(self, tx):
+        signature = self._get_signature(tx)
+        sighash = utils.sha3_512(signature)
+        return sighash

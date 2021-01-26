@@ -20,3 +20,7 @@ class RateLimitExceededError(Exception):
 
 class UnexpectedError(Exception):
     pass
+
+
+class BadRequestError(Exception):
+    pass

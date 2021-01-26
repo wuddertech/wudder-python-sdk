@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-from wudder import Wudder, Fragment
+from wudder import Wudder, Fragment, graphn
 from os import environ
 from tests import env
 
@@ -14,23 +14,24 @@ class TestWudder(unittest.TestCase):
                     graphql_endpoint=environ['GRAPHQL_ENDPOINT'])
 
     evhash = env.evhash
-    proof = env.proof
+    # proof = env.proof
     event_dict = env.event_dict
-    trace = env.trace
+    # trace = env.trace
+
     evhash2 = env.evhash2
-    sighash = env.sighash
+    signature = env.signature
 
     def test_create_proof(self):
         evhash = self.wudder.create_proof('Title', Fragment('clave', 'valor'))
-        self.assertEqual(len(evhash), 64)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_create_trace(self):
         evhash = self.wudder.create_trace('Title', Fragment('clave', 'valor'))
-        self.assertEqual(len(evhash), 64)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_add_event(self):
         evhash = self.wudder.add_event(self.evhash2, 'Title', Fragment('clave', 'valor'))
-        self.assertEqual(len(evhash), 64)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_get_event(self):
         event = self.wudder.get_event(self.evhash)
@@ -40,20 +41,20 @@ class TestWudder(unittest.TestCase):
     #     trace = self.wudder.get_trace(self.evhash)
     #     self.assertDictEqual(trace, self.trace)
 
-    def test_get_proof(self):
-        proof = self.wudder.get_proof(self.evhash)
-        self.assertDictEqual(proof, self.proof)
+    # def test_get_proof(self):
+    #     proof = self.wudder.get_proof(self.evhash)
+    #     self.assertDictEqual(proof, self.proof)
 
-    def test_check_ethereum_proof(self):
-        self.assertTrue(
-            self.wudder.check_ethereum_proof(self.proof['graphn_proof'], self.proof['anchor_txs']['ethereum']))
+    # def test_check_ethereum_proof(self):
+    #     self.assertTrue(
+    #         self.wudder.check_ethereum_proof(self.proof['graphn_proof'], self.proof['anchor_txs']['ethereum']))
 
-    def test_check_graphn_proof(self):
-        self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
+    # def test_check_graphn_proof(self):
+    #     self.assertTrue(self.wudder.check_graphn_proof(self.proof['graphn_proof']))
 
-    def test_sighash(self):
+    def test_signature(self):
         event = self.wudder.get_event(self.evhash2)
-        self.assertTrue(self.wudder.check_sighash(self.sighash, event))
+        self.assertTrue(self.wudder.check_signature(self.signature, event))
 
 
 if __name__ == '__main__':
