@@ -15,24 +15,30 @@ class TestWudder(unittest.TestCase):
 
     evhash = env.evhash
     event_dict = env.event_dict
-
-    evhash2 = env.evhash2
     signature = env.signature
 
-    def test_create_proof(self):
-        evhash = self.wudder.create_proof('Title', [Fragment('clave', 'valor')])
-        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
-
-    def test_create_simple_proof(self):
-        evhash = self.wudder.create_simple_proof('Title', [Fragment('clave', 'valor')])
-        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
-
     def test_create_trace(self):
-        evhash = self.wudder.create_trace('Title', [Fragment('clave', 'valor')])
+        evhash = self.wudder.send('Title', [Fragment('clave', 'valor')])
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
-    def test_add_event(self):
-        evhash = self.wudder.add_event(self.evhash2, 'Title', [Fragment('clave', 'valor')])
+    def test_create_trace_directly(self):
+        evhash = self.wudder.send('Title', [Fragment('clave', 'valor')], direct=True)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
+
+    def test_extend_trace(self):
+        evhash = self.wudder.send('Title', [Fragment('clave', 'valor')], trace=self.evhash)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
+
+    def test_extend_trace_directly(self):
+        evhash = self.wudder.send('Title', [Fragment('clave', 'valor')],
+                                  trace=self.evhash,
+                                  direct=True)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
+
+    def test_extend_trace_two_steps(self):
+        prepared_hash = self.wudder.prepare('Title', [Fragment('clave', 'valor')])['hash']
+        prepared_tx = self.wudder.get_prepared(prepared_hash)['tx']
+        evhash = self.wudder.send_prepared(prepared_tx)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_get_event(self):
@@ -57,7 +63,7 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(self.wudder.check_graphn_proof(graphn_proof, self.evhash))
 
     def test_signature(self):
-        event = self.wudder.get_event(self.evhash2)
+        event = self.wudder.get_event(self.evhash)
         self.assertTrue(self.wudder.check_signature(self.signature, event))
 
 

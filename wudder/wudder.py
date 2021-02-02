@@ -13,7 +13,7 @@ from os import environ
 from easyweb3 import EasyWeb3
 import traceback
 
-RETRY_ATTEMPTS = 3
+RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1
 
 
@@ -254,70 +254,39 @@ class Wudder:
         variables = {'user': {'ethAccount': private_key}}
         self.graphql.execute(mutation, variables)
 
-    @retry
-    def _login(self, email: str, password: str, private_key_password: str):
-        mutation = '''
-            mutation Login($email: String!, $password: String!) {
-                login(email: $email, password: $password){
-                    token
-                    refreshToken
-                    ethAccount
-                }
-            }
-        '''
-        variables = {'email': email, 'password': password}
-        data, errors = self.graphql.execute(mutation, variables)
-        self._manage_errors(errors)
 
-        self.token = data['login']['token']
-        self.refresh_token = data['login']['refreshToken']
-        self._update_headers()
 
-        # Create private_key if missing
-        if not data['login']['ethAccount']:
-            self._private_key = utils.generate_private_key(private_key_password)
-            self.update_private_key(self._private_key)
-        else:
-            self._private_key = json.loads(data['login']['ethAccount'])
+    def send(self,
+             title: str,
+             fragments: list,
+             trace: str = None,
+             event_type: str = None,
+             direct=False) -> str:
+        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event = Event(fragments=fragments, trace=trace, event_type=event_type)
+        if direct:
+            return self._send_event_directly(title, event)
+        return self._send_event(title, event)
 
-        try:
-            self.web3 = EasyWeb3(self._private_key, private_key_password)
-        except ValueError:
-            raise exceptions.AuthError
+    def corroborate(self, trace: str, direct=False):
+        raise NotImplementedError
 
-    def create_proof(self, title: str, fragments: list) -> str:
-        return self.create_trace(title, fragments)
+    def prepare(self, title: str, fragments: list, trace: str = None) -> dict:
+        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event = Event(fragments=fragments, trace=trace, event_type=event_type)
+        return self._prepare(title, event)
 
-    def create_simple_proof(self, title: str, fragments: list) -> str:
-        return self.create_simple_trace(title, fragments)
+    def get_prepared(self, tmp_hash: str) -> dict:
+        return self._get_prepared(tmp_hash)
 
-    def create_trace(self, title: str, fragments: list) -> str:
-        return self._add_event(title, fragments, EventTypes.TRACE)
+    def send_prepared(self, tx: dict) -> str:
+        signature = None
+        if self.web3 is not None:
+            signature = self._get_signature(tx)
+        evhash = self._send_prepared(tx, signature)
+        return evhash
 
-    def create_simple_trace(self, title: str, fragments: list) -> str:
-        return self._add_simple_event(title, fragments, EventTypes.TRACE)
-
-    def add_event(self, trace: str, title: str, fragments: list) -> str:
-        return self._add_event(title, fragments, EventTypes.ADD_EVENT, trace)
-
-    @retry
-    def get_prepared_event(self, evhash: str) -> tuple:
-        query = '''
-            query PreparedEvidence($evhash: String!){
-                preparedEvidence(evhash: $evhash){
-                    formattedTransaction
-                }
-            }
-        '''
-        variables = {'evhash': evhash}
-        data, errors = self.graphql.execute(query, variables)
-        self._manage_errors(errors)
-
-        tx = json.loads(data['preparedEvidence']['formattedTransaction'])
-        event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
-        return tx, event
-
-    def get_tx(self, event: Event) -> dict:
+    def get_event_tx(self, event: Event) -> dict:
         cthash = utils.cthash(event.dict)
         tx = {'cthash': cthash, 'version': graphn.PROTOCOL_VERSION}
 
@@ -335,14 +304,14 @@ class Wudder:
         return tx
 
     def check_sighash(self, sighash: str, event: Event) -> bool:
-        tx = self.get_tx(event)
+        tx = self.get_event_tx(event)
         obtained_sighash = self._get_sighash(tx)
         if obtained_sighash == sighash:
             return True
         return False
 
     def check_signature(self, signature: str, event: Event) -> bool:
-        tx = self.get_tx(event)
+        tx = self.get_event_tx(event)
         obtained_signature = self._get_signature(tx)
         if obtained_signature == signature:
             return True
@@ -409,32 +378,6 @@ class Wudder:
 
         return data['trace']
 
-    @retry
-    def get_proof(self, evhash: str) -> dict:
-        query = '''
-            query GetEvidence($evhash: String!){
-                evidence(evhash: $evhash){
-                    graphnData
-                }
-            }
-        '''
-        variables = {'evhash': evhash}
-        data, errors = self.graphql.execute(query, variables)
-        self._manage_errors(errors)
-
-        if data['evidence'] is None or data['evidence']['graphnData'] is None:
-            raise exceptions.NotFoundError
-
-        graphn_data = json.loads(data['evidence']['graphnData'])
-
-        proof_data = {
-            'block_proof': graphn_data['block_proof'],
-        }
-        if 'proof' in graphn_data:
-            proof_data['proof'] = graphn_data['proof']
-            proof_data['prefixes'] = graphn_data['prefixes']
-
-        return proof_data
 
     def check_ethereum_proof(self, graphn_proof: str, anchor_tx: str) -> bool:
         root_hash = utils.check_compound_proof(graphn_proof)['root_hash']
@@ -448,34 +391,54 @@ class Wudder:
         result = utils.check_compound_proof(graphn_proof)
         return evhash == result['verified_hash']
 
-    def _add_event(self, title: str, fragments: list, event_type: str, trace=None) -> str:
-        event = Event(fragments=fragments, trace=trace, event_type=event_type)
-        server_tx, server_event = self._format_event(title, event)
+    @retry
+    def _login(self, email: str, password: str, private_key_password: str):
+        mutation = '''
+            mutation Login($email: String!, $password: String!) {
+                login(email: $email, password: $password){
+                    token
+                    refreshToken
+                    ethAccount
+                }
+            }
+        '''
+        variables = {'email': email, 'password': password}
+        data, errors = self.graphql.execute(mutation, variables)
+        self._manage_errors(errors)
+
+        self.token = data['login']['token']
+        self.refresh_token = data['login']['refreshToken']
+        self._update_headers()
+
+        # Create private_key if missing
+        if not data['login']['ethAccount']:
+            self._private_key = utils.generate_private_key(private_key_password)
+            self.update_private_key(self._private_key)
+        else:
+            self._private_key = json.loads(data['login']['ethAccount'])
+
+        try:
+            self.web3 = EasyWeb3(self._private_key, private_key_password)
+        except ValueError:
+            raise exceptions.AuthError
+        
+    def _send_event(self, title: str, event: Event) -> str:
+        result = self._prepare(title, event)
 
         # Do not trust the server
-        if not event.match(server_event):
-            raise ValueError(f'event mismatch\n{event.dict}\nvs.\n{server_event.dict}')
+        if not event.match(result['event']):
+            raise ValueError(f"event mismatch\n{event.dict}\nvs.\n{result['event'].dict}")
 
-        tx = self.get_tx(server_event)
-        if utils.ordered_stringify(server_tx) != utils.ordered_stringify(tx):
+        tx = self.get_event_tx(result['event'])
+        if utils.ordered_stringify(result['tx']) != utils.ordered_stringify(tx):
             raise ValueError(
-                f'tx mismatch\n{utils.ordered_stringify(server_tx)}\nvs.\n{utils.ordered_stringify(tx)}'
+                f"tx mismatch\n{utils.ordered_stringify(result['tx'])}\nvs.\n{utils.ordered_stringify(tx)}"
             )
 
-        signature = ''
+        signature = None
         if self.web3 is not None:
             signature = self._get_signature(tx)
-        tx_str = utils.ordered_stringify(tx)
-        evhash = self._send_event(tx_str, signature)
-        return evhash
-
-    def _add_simple_event(self,
-                          title: str,
-                          fragments: list,
-                          event_type: str,
-                          trace: str = None) -> str:
-        event = Event(fragments=fragments, trace=trace, event_type=event_type)
-        evhash = self._send_simple_event(title, event)
+        evhash = self._send_prepared(tx, signature)
         return evhash
 
     def _loop_refresh(self):
@@ -505,39 +468,7 @@ class Wudder:
         self._update_headers()
 
     @retry
-    def _format_event(self, title: str, event: Event) -> tuple:
-        mutation = '''
-            mutation FormatTransaction($content: ContentInput!, $displayName: String!){
-                formatTransaction(content: $content, displayName: $displayName){
-                    formattedTransaction
-                    preparedContent
-                }
-            }
-        '''
-        variables = {'displayName': title, 'content': event.dict}
-        data, errors = self.graphql.execute(mutation, variables)
-        self._manage_errors(errors)
-
-        tx = json.loads(data['formatTransaction']['formattedTransaction'])
-        event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
-        return tx, event
-
-    @retry
-    def _send_event(self, tx_str: str, signature: str = '') -> str:
-        mutation = '''
-            mutation ConfirmPreparedEvidence($evidence: PreparedEvidenceInput!){
-                confirmPreparedEvidence(evidence: $evidence){
-                    evhash
-                }
-            }
-        '''
-        variables = {'evidence': {'preparedEvidence': tx_str, 'signature': signature}}
-        data, errors = self.graphql.execute(mutation, variables)
-        self._manage_errors(errors)
-        return data['confirmPreparedEvidence']['evhash']
-
-    @retry
-    def _send_simple_event(self, title: str, event: Event) -> str:
+    def _send_event_directly(self, title: str, event: Event) -> str:
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!, $displayName: String!){
                 createEvidence(evidence: $evidence, displayName: $displayName){
@@ -549,6 +480,98 @@ class Wudder:
         data, errors = self.graphql.execute(mutation, variables)
         self._manage_errors(errors)
         return data['createEvidence']['evhash']
+
+    @retry
+    def _prepare(self, title: str, event: Event) -> dict:
+        mutation = '''
+            mutation PrepareEvidence($content: ContentInput!, $displayName: String!){
+                prepareEvidence(content: $content, displayName: $displayName){
+                    formattedTransaction
+                    preparedContent
+                    hash
+                    url
+                }
+            }
+        '''
+        variables = {'displayName': title, 'content': event.dict}
+        data, errors = self.graphql.execute(mutation, variables)
+        self._manage_errors(errors)
+
+        output_data = {
+            'tx': json.loads(data['prepareEvidence']['formattedTransaction']),
+            'event': Event(event_dict=json.loads(data['prepareEvidence']['preparedContent'])),
+            'hash': data['prepareEvidence']['hash'],
+            'url': data['prepareEvidence']['url'],
+        }
+        return output_data
+
+    @retry
+    def _get_prepared(self, tmp_hash: str) -> dict:
+        query = '''
+            query PreparedEvidence($hash: String!){
+                preparedEvidence(hash: $hash){
+                    formattedTransaction
+                    preparedContent
+                    url
+                }
+            }
+        '''
+        variables = {'hash': tmp_hash}
+        data, errors = self.graphql.execute(query, variables)
+        self._manage_errors(errors)
+
+        output_data = {
+            'tx': json.loads(data['preparedEvidence']['formattedTransaction']),
+            'event': Event(event_dict=json.loads(data['preparedEvidence']['preparedContent'])),
+            'hash': tmp_hash,
+            'url': data['preparedEvidence']['url'],
+        }
+        return output_data
+
+    @retry
+    def _send_prepared(self, tx: dict, signature: str = None) -> str:
+        mutation = '''
+            mutation ConfirmPreparedEvidence($evidence: PreparedEvidenceInput!){
+                confirmPreparedEvidence(evidence: $evidence){
+                    evhash
+                }
+            }
+        '''
+        tx_str = utils.ordered_stringify(tx)
+        if signature is None:
+            signature = ''
+        variables = {'evidence': {'preparedEvidence': tx_str, 'signature': signature}}
+        data, errors = self.graphql.execute(mutation, variables)
+        self._manage_errors(errors)
+        return data['confirmPreparedEvidence']['evhash']
+
+
+    @retry
+    def get_proof(self, evhash: str) -> dict:
+        query = '''
+            query GetEvidence($evhash: String!){
+                evidence(evhash: $evhash){
+                    graphnData
+                }
+            }
+        '''
+        variables = {'evhash': evhash}
+        data, errors = self.graphql.execute(query, variables)
+        self._manage_errors(errors)
+
+        if data['evidence'] is None or data['evidence']['graphnData'] is None:
+            raise exceptions.NotFoundError
+
+        graphn_data = json.loads(data['evidence']['graphnData'])
+
+        proof_data = {
+            'block_proof': graphn_data['block_proof'],
+        }
+        if 'proof' in graphn_data:
+            proof_data['proof'] = graphn_data['proof']
+            proof_data['prefixes'] = graphn_data['prefixes']
+
+        return proof_data
 
     def _manage_errors(self, errors: list):
         if not errors:
