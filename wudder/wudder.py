@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
 from . import utils
 from . import exceptions
 from . import graphn
@@ -8,20 +9,12 @@ from easygraphql import GraphQL
 import json
 from threading import Thread
 import time
-import requests
 from os import environ
 from easyweb3 import EasyWeb3
 import traceback
 
 RETRY_ATTEMPTS = 3
 RETRY_INTERVAL = 1
-
-# TODO
-# - get_tx
-# - timestamp evento
-# - evento simple
-# - preparar tx -> url, etc
-# - crear sin comprobar
 
 
 def retry(method):
@@ -43,11 +36,12 @@ class Fragment:
     VISIBILITY_PRIVATE = 'private'
 
     def __init__(self,
-                 field=None,
-                 value=None,
-                 visibility=VISIBILITY_PUBLIC,
+                 field: str = None,
+                 value: str = None,
+                 visibility: str = VISIBILITY_PUBLIC,
                  salt: str = None,
                  fragment_dict: dict = None):
+
         if fragment_dict is not None:
             self._load_fragment_dict(fragment_dict)
             return
@@ -57,31 +51,31 @@ class Fragment:
         self.visibility = visibility
         self.salt = salt
 
-    def match(self, fragment):
-        if isinstance(fragment, dict):
-            fragment = Fragment(fragment_dict=fragment)
-
+    def match(self, fragment: Fragment) -> bool:
         if self.field != fragment.field:
             return False
 
         if self.value != fragment.value:
             return False
+
         return True
 
-    def _load_fragment_dict(self, fragment_dict):
-        self.field = fragment_dict['field']
-        self.value = fragment_dict['value']
-        if 'visibility' in fragment_dict:
-            self.visibility = fragment_dict['visibility']
+    def _load_fragment_dict(self, fragment: dict):
+        self.field = fragment['field']
+        self.value = fragment['value']
+
+        if 'visibility' in fragment:
+            self.visibility = fragment['visibility']
         else:
             self.visibility = Fragment.VISIBILITY_PUBLIC
-        if 'salt' in fragment_dict:
-            self.salt = fragment_dict['salt']
+
+        if 'salt' in fragment:
+            self.salt = fragment['salt']
         else:
             self.salt = None
 
     @property
-    def dict(self):
+    def dict(self) -> dict:
         fragment_dict = {'field': self.field, 'value': self.value, 'visibility': self.visibility}
         if self.salt is not None:
             fragment_dict['salt'] = self.salt
@@ -90,7 +84,7 @@ class Fragment:
 
 class Event:
     def __init__(self,
-                 fragments=None,
+                 fragments: list = None,
                  trace: str = None,
                  event_type: str = None,
                  timestamp: int = None,
@@ -100,12 +94,8 @@ class Event:
             self._load_event_dict(event_dict)
             return
 
-        if isinstance(fragments, Fragment):
-            fragments = [fragments]
-        self.fragments = fragments
-
+        self._set_fragments(fragments)
         self._set_trace(trace)
-        self.salt = salt
 
         self.type = event_type
         if self.type is None:
@@ -117,12 +107,17 @@ class Event:
         if timestamp is None:
             self.timestamp = utils.get_timestamp_ms()
 
+        self.salt = salt
         self.proof = None
 
-    def match(self, event):
-        if isinstance(event, dict):
-            event = Event(event_dict=event)
+    @property
+    def fragments(self) -> list:
+        fragments = []
+        for fragment in self._fragments:
+            fragments.append(Fragment(fragment_dict=fragment.dict))
+        return fragments
 
+    def match(self, event: Event) -> bool:
         for self_fragment, event_fragment in zip(self.fragments, event.fragments):
             if not self_fragment.match(event_fragment):
                 return False
@@ -140,30 +135,38 @@ class Event:
 
         return True
 
-    def _set_trace(self, trace):
+    def _set_fragments(self, fragments: list):
+        if not isinstance(fragments, list):
+            raise TypeError
+
+        for fragment in fragments:
+            if not isinstance(fragment, Fragment):
+                raise TypeError
+        self._fragments = fragments
+
+    def _set_trace(self, trace: str):
         if trace is None:
             trace = graphn.ZEROS_HASH
         self.trace = trace
 
-    def _load_event_dict(self, event_dict):
-        self.fragments = event_dict['fragments']
-        self._set_trace(event_dict['trace'])
-        self.type = event_dict['type']
-        self.salt = event_dict['salt']
-        self.timestamp = event_dict['timestamp']
+    def _load_event_dict(self, event: dict):
+        self._set_fragments([Fragment(fragment_dict=fragment) for fragment in event['fragments']])
+        self._set_trace(event['trace'])
+        self.type = event['type']
+        self.salt = event['salt']
+        self.timestamp = event['timestamp']
 
-        if 'proof' in event_dict:
-            self.proof = event_dict['proof']
+        if 'proof' in event:
+            self.proof = event['proof']
         else:
             self.proof = None
 
     @property
-    def dict(self):
+    def dict(self) -> dict:
         fragments = []
         for fragment in self.fragments:
-            if isinstance(fragment, Fragment):
-                fragment = fragment.dict
-            fragments.append(fragment)
+            fragments.append(fragment.dict)
+
         event_dict = {
             'fragments': fragments,
             'trace': self.trace,
@@ -188,14 +191,17 @@ class Wudder:
 
     @staticmethod
     @retry
-    def signup(email, password, private_key_password, graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT):
+    def signup(email: str,
+               password: str,
+               private_key_password: str,
+               graphql_endpoint: str = DEFAULT_GRAPHQL_ENDPOINT):
         private_key = utils.generate_private_key(private_key_password)
         EasyWeb3(private_key, private_key_password)
         Wudder._create_user(email, password, private_key, graphql_endpoint)
 
     @staticmethod
     @retry
-    def _create_user(email, password, private_key, graphql_endpoint):
+    def _create_user(email: str, password: str, private_key: str, graphql_endpoint: str):
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
                 createUser(user: $user, password: $password) {
@@ -216,11 +222,11 @@ class Wudder:
             raise exceptions.SignupError
 
     def __init__(self,
-                 email,
-                 password,
-                 private_key_password,
-                 graphql_endpoint=DEFAULT_GRAPHQL_ENDPOINT,
-                 ethereum_endpoint=DEFAULT_ETHEREUM_ENDPOINT):
+                 email: str,
+                 password: str,
+                 private_key_password: str,
+                 graphql_endpoint: str = DEFAULT_GRAPHQL_ENDPOINT,
+                 ethereum_endpoint: str = DEFAULT_ETHEREUM_ENDPOINT):
         self.graphql = GraphQL(graphql_endpoint)
 
         self._private_key_password = private_key_password
@@ -231,11 +237,11 @@ class Wudder:
         Thread(target=self._loop_refresh, daemon=True).start()
 
     @property
-    def private_key(self):
+    def private_key(self) -> dict:
         return self._private_key
 
     @retry
-    def update_private_key(self, private_key):
+    def update_private_key(self, private_key: str):
         mutation = '''
             mutation UpdateUser($user: UserInput!){
                 updateUser(user: $user) {
@@ -249,7 +255,7 @@ class Wudder:
         self.graphql.execute(mutation, variables)
 
     @retry
-    def _login(self, email, password, private_key_password):
+    def _login(self, email: str, password: str, private_key_password: str):
         mutation = '''
             mutation Login($email: String!, $password: String!) {
                 login(email: $email, password: $password){
@@ -279,14 +285,37 @@ class Wudder:
         except ValueError:
             raise exceptions.AuthError
 
-    def create_proof(self, title, fragments):
+    def create_proof(self, title: str, fragments: list) -> str:
         return self.create_trace(title, fragments)
 
-    def create_trace(self, title, fragments):
+    def create_simple_proof(self, title: str, fragments: list) -> str:
+        return self.create_simple_trace(title, fragments)
+
+    def create_trace(self, title: str, fragments: list) -> str:
         return self._add_event(title, fragments, EventTypes.TRACE)
 
-    def add_event(self, trace, title, fragments):
+    def create_simple_trace(self, title: str, fragments: list) -> str:
+        return self._add_simple_event(title, fragments, EventTypes.TRACE)
+
+    def add_event(self, trace: str, title: str, fragments: list) -> str:
         return self._add_event(title, fragments, EventTypes.ADD_EVENT, trace)
+
+    @retry
+    def get_prepared_event(self, evhash: str) -> tuple:
+        query = '''
+            query PreparedEvidence($evhash: String!){
+                preparedEvidence(evhash: $evhash){
+                    formattedTransaction
+                }
+            }
+        '''
+        variables = {'evhash': evhash}
+        data, errors = self.graphql.execute(query, variables)
+        self._manage_errors(errors)
+
+        tx = json.loads(data['preparedEvidence']['formattedTransaction'])
+        event = Event(event_dict=json.loads(data['formatTransaction']['preparedContent']))
+        return tx, event
 
     def get_tx(self, event: Event) -> dict:
         cthash = utils.cthash(event.dict)
@@ -305,14 +334,14 @@ class Wudder:
 
         return tx
 
-    def check_sighash(self, sighash, event):
+    def check_sighash(self, sighash: str, event: Event) -> bool:
         tx = self.get_tx(event)
         obtained_sighash = self._get_sighash(tx)
         if obtained_sighash == sighash:
             return True
         return False
 
-    def check_signature(self, signature, event):
+    def check_signature(self, signature: str, event: Event) -> bool:
         tx = self.get_tx(event)
         obtained_signature = self._get_signature(tx)
         if obtained_signature == signature:
@@ -320,7 +349,7 @@ class Wudder:
         return False
 
     @retry
-    def get_event(self, evhash):
+    def get_event(self, evhash: str) -> Event:
         query = '''
             query GetEvidence($evhash: String!){
                 evidence(evhash: $evhash){
@@ -347,11 +376,10 @@ class Wudder:
             'salt': original_content['salt']
         }
 
-        event = Event(event_dict=event_dict)
-        return event
+        return Event(event_dict=event_dict)
 
     @retry
-    def get_trace(self, evhash):
+    def get_trace(self, evhash: str) -> dict:
         query = '''
             query GetTrace($evhash: String!){
                 trace(evhash: $evhash){
@@ -382,7 +410,7 @@ class Wudder:
         return data['trace']
 
     @retry
-    def get_proof(self, evhash, force_tmp_l2_proof=False):
+    def get_proof(self, evhash: str) -> dict:
         query = '''
             query GetEvidence($evhash: String!){
                 evidence(evhash: $evhash){
@@ -397,21 +425,30 @@ class Wudder:
         if data['evidence'] is None or data['evidence']['graphnData'] is None:
             raise exceptions.NotFoundError
 
-        if 'graphnData' in data['evidence']:
-            proof_dict = self._extract_proof_from_graphn_data(data['evidence']['graphnData'])
-            if force_tmp_l2_proof or 'anchor_txs' in proof_dict:
-                return proof_dict
+        graphn_data = json.loads(data['evidence']['graphnData'])
 
-    def check_ethereum_proof(self, graphn_proof, anchor_tx):
-        root_hash = utils.get_root_hash(graphn_proof)
-        return self._check_ethereum_root_hash(anchor_tx, root_hash)
+        proof_data = {
+            'block_proof': graphn_data['block_proof'],
+        }
+        if 'proof' in graphn_data:
+            proof_data['proof'] = graphn_data['proof']
+            proof_data['prefixes'] = graphn_data['prefixes']
 
-    def check_graphn_proof(self, graphn_proof):
-        if utils.get_root_hash(graphn_proof) is not None:
+        return proof_data
+
+    def check_ethereum_proof(self, graphn_proof: str, anchor_tx: str) -> bool:
+        root_hash = utils.check_compound_proof(graphn_proof)['root_hash']
+        engraved_root_hash = utils.get_ethereum_tx_input(anchor_tx,
+                                                         self.ethereum_endpoint)[2:]  # remove 0x
+        if root_hash == engraved_root_hash:
             return True
         return False
 
-    def _add_event(self, title, fragments, event_type=None, trace=None):
+    def check_graphn_proof(self, graphn_proof: str, evhash: str) -> bool:
+        result = utils.check_compound_proof(graphn_proof)
+        return evhash == result['verified_hash']
+
+    def _add_event(self, title: str, fragments: list, event_type: str, trace=None) -> str:
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         server_tx, server_event = self._format_event(title, event)
 
@@ -432,33 +469,14 @@ class Wudder:
         evhash = self._send_event(tx_str, signature)
         return evhash
 
-    def _extract_proof_from_graphn_data(self, graphn_data_str):
-        graphn_data = json.loads(graphn_data_str)
-        proof_dict = {'graphn_proof': graphn_data['proof']}
-        if 'prefixes' in graphn_data and 'ethereum' in graphn_data['prefixes']:
-            anchor_txs = {
-                private_key: value['tx_hash']
-                for private_key, value in graphn_data['prefixes'].items()
-            }
-            proof_dict['anchor_txs'] = anchor_txs
-        return proof_dict
-
-    def _check_ethereum_root_hash(self, anchor_tx, root_hash):
-        eth_root_hash = self._get_ethereum_tx_input(anchor_tx,
-                                                    self.ethereum_endpoint)[2:]  # remove 0x
-        if eth_root_hash == root_hash:
-            return True
-        return False
-
-    def _get_ethereum_tx_input(self, tx_hash, endpoint):
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "eth_getTransactionByHash",
-            "params": [tx_hash],
-            "id": 1
-        }
-        headers = {'Content-Type': 'application/json'}
-        return requests.post(endpoint, json=payload, headers=headers).json()['result']['input']
+    def _add_simple_event(self,
+                          title: str,
+                          fragments: list,
+                          event_type: str,
+                          trace: str = None) -> str:
+        event = Event(fragments=fragments, trace=trace, event_type=event_type)
+        evhash = self._send_simple_event(title, event)
+        return evhash
 
     def _loop_refresh(self):
         while True:
@@ -487,7 +505,7 @@ class Wudder:
         self._update_headers()
 
     @retry
-    def _format_event(self, title, event):
+    def _format_event(self, title: str, event: Event) -> tuple:
         mutation = '''
             mutation FormatTransaction($content: ContentInput!, $displayName: String!){
                 formatTransaction(content: $content, displayName: $displayName){
@@ -505,7 +523,7 @@ class Wudder:
         return tx, event
 
     @retry
-    def _send_event(self, tx_str: str, signature=''):
+    def _send_event(self, tx_str: str, signature: str = '') -> str:
         mutation = '''
             mutation ConfirmPreparedEvidence($evidence: PreparedEvidenceInput!){
                 confirmPreparedEvidence(evidence: $evidence){
@@ -518,7 +536,21 @@ class Wudder:
         self._manage_errors(errors)
         return data['confirmPreparedEvidence']['evhash']
 
-    def _manage_errors(self, errors):
+    @retry
+    def _send_simple_event(self, title: str, event: Event) -> str:
+        mutation = '''
+            mutation CreateEvidence($evidence: EvidenceInput!, $displayName: String!){
+                createEvidence(evidence: $evidence, displayName: $displayName){
+                    evhash
+                }
+            }
+        '''
+        variables = {'displayName': title, 'evidence': {'content': event.dict}}
+        data, errors = self.graphql.execute(mutation, variables)
+        self._manage_errors(errors)
+        return data['createEvidence']['evhash']
+
+    def _manage_errors(self, errors: list):
         if not errors:
             return
 
@@ -538,14 +570,12 @@ class Wudder:
         except KeyError:
             raise exceptions.UnexpectedError(errors[0])
 
-    def _get_signature(self, tx):
-        if isinstance(tx, str):
-            tx = json.loads(tx)
+    def _get_signature(self, tx: dict) -> str:
         tx_str = utils.ordered_stringify(tx)
         signature = self.web3.sign(tx_str)
         return signature
 
-    def _get_sighash(self, tx):
+    def _get_sighash(self, tx: dict) -> str:
         signature = self._get_signature(tx)
         sighash = utils.sha3_512(signature)
         return sighash

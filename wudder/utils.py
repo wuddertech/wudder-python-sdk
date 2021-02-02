@@ -6,6 +6,8 @@ import json
 from easyweb3 import EasyWeb3
 from os import makedirs
 import time
+import requests
+from . import graphn
 
 
 def sha3_512(text: str) -> str:
@@ -23,7 +25,11 @@ def ordered_stringify(unordered_dict: dict) -> str:
 def cthash(content: dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
-        if isinstance(fragment, str) and len(fragment) == 128:
+
+        # Visibility is not taken into account
+        del fragment['visibility']
+
+        if isinstance(fragment, str) and len(fragment) == graphn.HASH_LENGTH:
             fragment_hashes.append(fragment)
         else:
             fragment_hashes.append(sha3_512(ordered_stringify(fragment)))
@@ -36,40 +42,6 @@ def cthash(content: dict) -> str:
     })
 
     return sha3_512(original_content)
-
-
-def get_root_hash(proof: str) -> str:
-    def dbmt_hash(value: str, level: int = None) -> str:
-        return sha3_512(f'{level}{value}')
-
-    if len(proof) < 128 + 1:
-        return
-
-    root_hash = proof[-128:]
-    actual_proof = proof[:-128]
-
-    items = [actual_proof[i:i + 128 + 1] for i in range(0, len(actual_proof), 128 + 1)]
-
-    start_index = 0
-    current_hash = items[0][1:]
-    if items[0][0] != 'o':
-        start_index = 1
-
-    for i in range(start_index, len(items)):
-        is_last_item = i == len(items) - 1
-        level = i - start_index if not is_last_item else None
-
-        if items[i][0] == 'l':
-            current_hash = dbmt_hash(items[i][1:] + current_hash, level=level)
-        elif items[i][0] == 'r':
-            current_hash = dbmt_hash(current_hash + items[i][1:], level=level)
-        elif items[i][0] == 'o':
-            current_hash = dbmt_hash(current_hash, level=level)
-        else:
-            return
-
-    if current_hash == root_hash:
-        return root_hash
 
 
 def generate_private_key(password: str) -> dict:
@@ -86,3 +58,105 @@ def generate_private_key(password: str) -> dict:
 
 def get_timestamp_ms() -> int:
     return int(round(time.time() * 1000))
+
+
+def dbmt_hash(value: str, level: int = None) -> str:
+    return sha3_512(f'{level}{value}')
+
+
+def check_compound_proof(compound_proof: str = None,
+                         tree_proof: str = None,
+                         block_proof: str = None,
+                         blocktree_proof: str = None) -> dict:
+    if compound_proof is not None:
+        return check_compound_proof(None, *compound_proof.split(':'))
+
+    # Check tree proof
+    tree_proof_result = check_tree_proof(tree_proof)
+    if not tree_proof_result['valid']:
+        return {'valid': False}
+
+    # Are proofs linked? (1/2)
+    proofs_linked = tree_proof_result['root_hash'] == block_proof[1:graphn.HASH_LENGTH + 1]
+    if not proofs_linked:
+        return {'valid': False}
+
+    block_proof_result = check_block_proof(block_proof)
+    if not block_proof_result['valid']:
+        return {'valid': False}
+
+    if blocktree_proof is None:
+        return block_proof_result
+
+    # Are proofs linked? (2/2)
+    proofs_linked = block_proof_result['root_hash'] == blocktree_proof[1:graphn.HASH_LENGTH + 1]
+    if not proofs_linked:
+        return {'valid': False}
+
+    # Check blocktree proof
+    blocktree_proof_result = check_tree_proof(blocktree_proof)
+    blocktree_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH + 1]
+    return blocktree_proof_result
+
+
+def check_block_proof(proof: str) -> dict:
+    block_proof = proof[:-2 * graphn.HASH_LENGTH]
+    block_proof_result = check_tree_proof(block_proof)
+    if not block_proof_result['valid']:
+        return {'valid': False}
+
+    proof_extension = proof[-2 * graphn.HASH_LENGTH:]
+    meta_hash = proof_extension[:graphn.HASH_LENGTH]
+    block_hash = proof_extension[graphn.HASH_LENGTH:]
+    current_hash = dbmt_hash(meta_hash + block_proof_result['root_hash'])
+    if current_hash == block_hash:
+        return {
+            'verified_hash': block_proof_result['verified_hash'],
+            'root_hash': block_hash,
+            'valid': True
+        }
+    return {'valid': False}
+
+
+def check_tree_proof(proof: str) -> dict:
+    if len(proof) < graphn.HASH_LENGTH + 1:
+        return {'valid': False}
+
+    actual_proof = proof[:-graphn.HASH_LENGTH]
+    root_hash = proof[-graphn.HASH_LENGTH:]
+
+    # Position + 512 bits (129 chars)
+    items = [
+        actual_proof[i:i + graphn.HASH_LENGTH + 1]
+        for i in range(0, len(actual_proof), graphn.HASH_LENGTH + 1)
+    ]
+
+    start_index = 0
+    current_hash = items[0][1:]
+    if items[0][0] != 'o':
+        start_index = 1
+
+    for i in range(start_index, len(items)):
+        level = i - start_index
+
+        if items[i][0] == 'l':
+            current_hash = dbmt_hash(items[i][1:] + current_hash, level=level)
+        elif items[i][0] == 'r':
+            current_hash = dbmt_hash(current_hash + items[i][1:], level=level)
+        elif items[i][0] == 'o':
+            current_hash = dbmt_hash(current_hash, level=level)
+        else:
+            return {'valid': False}
+
+    # root_hash == tree hash, not merkle_root_hash
+    if current_hash == root_hash:
+        return {'verified_hash': items[0][1:], 'root_hash': root_hash, 'valid': True}
+
+    return {'valid': False}
+
+
+def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
+    payload = {"jsonrpc": "2.0", "method": "eth_getTransactionByHash", "params": [tx_hash], "id": 1}
+    headers = {'Content-Type': 'application/json'}
+    response_dict = requests.post(endpoint, json=payload, headers=headers).json()
+    return response_dict['result']['input']
