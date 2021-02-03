@@ -7,10 +7,7 @@ from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from . import exceptions
-import json
-from os import environ
 from easyweb3 import EasyWeb3
-import traceback
 
 
 class Wudder:

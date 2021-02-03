@@ -77,9 +77,6 @@ class WudderClient:
 
     def get_event(self, evhash: str) -> Event:
         response = self._get_event_call(evhash)
-        if response is None:
-            raise exceptions.NotFoundError('event not found')
-
         original_content = json.loads(response['originalContent'])['content']
         event_dict = {
             'type': original_content['type'],
@@ -310,7 +307,7 @@ class WudderClient:
     def _get_trace_call(self, evhash: str) -> dict:
         query = '''
             query GetTrace($evhash: String!){
-                getTrace(evhash: $evhash){
+                trace(evhash: $evhash){
                     creationEvidence {
                         evhash
                         type

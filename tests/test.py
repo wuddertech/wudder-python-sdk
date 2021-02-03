@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-from wudder import Wudder, Event, Fragment, graphn, utils
+from wudder import Wudder, Event, Fragment, graphn, utils, exceptions
 from os import environ
 from tests import env
 
@@ -65,6 +65,27 @@ class TestWudder(unittest.TestCase):
     def test_signature(self):
         event = self.wudder.get_event(self.evhash)
         self.assertTrue(self.wudder.check_signature(self.signature, event))
+
+    def test_get_non_existing_event(self):
+        try:
+            self.wudder.get_event(graphn.ZEROS_HASH)
+            self.assertTrue(False)
+        except exceptions.NotFoundError:
+            self.assertTrue(True)
+
+    def test_get_non_existing_trace(self):
+        try:
+            self.wudder.get_trace(graphn.ZEROS_HASH)
+            self.assertTrue(False)
+        except exceptions.NotFoundError:
+            self.assertTrue(True)
+
+    def test_get_non_existing_proof(self):
+        try:
+            self.wudder.get_proof(graphn.ZEROS_HASH)
+            self.assertTrue(False)
+        except exceptions.NotFoundError:
+            self.assertTrue(True)
 
 
 if __name__ == '__main__':
