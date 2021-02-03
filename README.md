@@ -1,7 +1,5 @@
 # python-sdk
 
-Wudder's Python SDK. The Wudder documentation is available at [docs.wudder.tech](https://docs.wudder.tech/).
-
 ## Installation
 
 ```bash
@@ -11,7 +9,7 @@ pip install wudder
 ## Usage
 
 ```
-from wudder import Wudder, Fragment, Event, utils
+from wudder import Wudder, Fragment, Event
 ```
 
 ### Create account
@@ -20,10 +18,10 @@ from wudder import Wudder, Fragment, Event, utils
 Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
-> You can specify a custom GraphQL endpoint with the argument `graphql_endpoint`
+> You can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', graphql_endpoint='https://api.testnet.wudder.tech/graphql/')
+Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.phoenix.wudder.tech/graphql/')
 ```
 
 ### Login
@@ -32,26 +30,22 @@ Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', graphql_endpoint=
 wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 ```
 
-> Again, you can specify a custom GraphQL endpoint with the argument `graphql_endpoint`
+> Again, you can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', graphql_endpoint='https://api.testnet.wudder.tech/graphql/')
+wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.phoenix.wudder.tech/graphql/')
 ```
 
 ### Create trace
+
 ```python
-evhash = wudder.create_trace('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
+trace_evhash = wudder.send('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
 ```
 
 ### Add event to trace
-```python
-evhash2 = wudder.add_event(evhash, 'Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
-```
 
-### Create proof
-> Currently it's an alias for `create_trace`
 ```python
-evhash = wudder.create_proof('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
+evhash = wudder.send('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')], trace=trace_evhash)
 ```
 
 ### Get event
@@ -75,7 +69,7 @@ proof = wudder.get_proof(evhash)
 ### Check Ethereum proof
 
 ```python
-wudder.check_ethereum_proof(proof['graphn_proof'], proof['anchor_txs']['ethereum']))
+wudder.check_ethereum_proof(proof['proof'], proof['prefixes']['ethereum']['tx_hash']))
 ```
 
 ### Create a local backup of the private key
@@ -87,9 +81,22 @@ with open('private_key.json', 'w') as output_file:
     json.dump(wudder.private_key, output_file)
 ```
 
+### Restore a local backup of the private key
+
+```python
+import json
+
+with open('private_key.json', 'r') as input_file:
+    private_key = json.load(input_file)
+
+wudder.update_private_key(private_key, 'k3y_p4ssw0rd')
+```
+
 ### Replace the private key
 
 ```python
+from wudder import utils
+
 new_private_key = utils.generate_private_key('k3y_p4ssw0rd')
-wudder.update_private_key(new_private_key)
+wudder.update_private_key(new_private_key, 'k3y_p4ssw0rd')
 ```

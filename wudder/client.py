@@ -12,11 +12,11 @@ import json
 
 
 class WudderClient:
-    DEFAULT_endpoint = 'https://api.phoenix.wudder.tech/graphql/'
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.phoenix.wudder.tech/graphql/'
 
     def __init__(self, email: str, password: str, private_key_password: str, endpoint: str = None):
         if endpoint is None:
-            endpoint = self.DEFAULT_endpoint
+            endpoint = self.DEFAULT_GRAPHQL_ENDPOINT
 
         self.graphql = GraphQL(endpoint)
         self.refresh_token = None
@@ -25,7 +25,7 @@ class WudderClient:
     @staticmethod
     def create_user(email: str, password: str, private_key: str, endpoint: str = None):
         if endpoint is None:
-            endpoint = WudderClient.DEFAULT_endpoint
+            endpoint = WudderClient.DEFAULT_GRAPHQL_ENDPOINT
         WudderClient._create_user_call(email, password, private_key, endpoint)
 
     @retry
