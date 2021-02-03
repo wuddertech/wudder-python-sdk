@@ -9,6 +9,23 @@ import time
 import requests
 from . import graphn
 
+RETRY_ATTEMPTS = 2
+RETRY_INTERVAL = 1
+
+
+def retry(method):
+    def _try_except(self, *args, **kwargs):
+        remaining_attempts = RETRY_ATTEMPTS
+        while remaining_attempts > 1:
+            try:
+                return method(self, *args, **kwargs)
+            except Exception:
+                remaining_attempts -= 1
+                time.sleep(RETRY_INTERVAL)
+        return method(self, *args, **kwargs)
+
+    return _try_except
+
 
 def sha3_512(text: str) -> str:
     return hashlib.sha3_512(text.encode('utf-8')).hexdigest()

@@ -46,21 +46,21 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(event.match(Event(event_dict=self.event_dict)))
 
     def test_get_proof(self):
-        graphn_proof = self.wudder.get_proof(self.evhash)['proof']
-        result = utils.check_compound_proof(graphn_proof)
+        proof_data = self.wudder.get_proof(self.evhash)
+        result = utils.check_compound_proof(proof_data['proof'])
         self.assertEqual(self.evhash, result['verified_hash'])
 
     def test_check_ethereum_proof(self):
-        proof = self.wudder.get_proof(self.evhash)
+        proof_data = self.wudder.get_proof(self.evhash)
         self.assertTrue(
             self.wudder.check_ethereum_proof(
-                proof['proof'],
-                proof['prefixes']['ethereum']['tx_hash'],
+                proof_data['proof'],
+                proof_data['prefixes']['ethereum']['tx_hash'],
             ))
 
     def test_check_graphn_proof(self):
-        graphn_proof = self.wudder.get_proof(self.evhash)['proof']
-        self.assertTrue(self.wudder.check_graphn_proof(graphn_proof, self.evhash))
+        proof_data = self.wudder.get_proof(self.evhash)
+        self.assertTrue(self.wudder.check_graphn_proof(proof_data['proof'], self.evhash))
 
     def test_signature(self):
         event = self.wudder.get_event(self.evhash)
