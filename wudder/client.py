@@ -12,37 +12,39 @@ import json
 
 
 class WudderClient:
-    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.phoenix.wudder.tech/graphql/'
+    DEFAULT_endpoint = 'https://api.phoenix.wudder.tech/graphql/'
 
-    def __init__(self,
-                 email: str,
-                 password: str,
-                 private_key_password: str,
-                 graphql_endpoint: str = None):
-        if graphql_endpoint is None:
-            graphql_endpoint = self.DEFAULT_GRAPHQL_ENDPOINT
+    def __init__(self, email: str, password: str, private_key_password: str, endpoint: str = None):
+        if endpoint is None:
+            endpoint = self.DEFAULT_endpoint
 
-        self.graphql = GraphQL(graphql_endpoint)
+        self.graphql = GraphQL(endpoint)
         self.refresh_token = None
         Thread(target=self._loop_refresh, daemon=True).start()
 
     @staticmethod
-    def create_user(email: str, password: str, private_key: str, graphql_endpoint: str = None):
-        if graphql_endpoint is None:
-            graphql_endpoint = WudderClient.DEFAULT_GRAPHQL_ENDPOINT
-        self._create_user_call(email, password, private_key, graphql_endpoint)
+    def create_user(email: str, password: str, private_key: str, endpoint: str = None):
+        if endpoint is None:
+            endpoint = WudderClient.DEFAULT_endpoint
+        WudderClient._create_user_call(email, password, private_key, endpoint)
 
+    @retry
     def login(self, email: str, password: str, private_key_password: str) -> dict:
-        response = self._login_call(email, password, private_key_password)
+        try:
+            response = self._login_call(email, password, private_key_password)
+        except TypeError:
+            raise exceptions.LoginError
+
         self._update_tokens(response['token'], response['refreshToken'])
         private_key = response['ethAccount']
         if private_key:
             return json.loads(private_key)
         return {}
 
-    def update_private_key(self, private_key: dict):
+    def update_private_key(self, private_key: dict) -> dict:
         private_key_str = utils.ordered_stringify(private_key)
-        self._update_private_key_call(private_key_str)
+        response = self._update_private_key_call(private_key_str)
+        return response['ethAccount']
 
     def send_event_directly(self, title: str, event: Event) -> str:
         response = self._send_event_directly_call(title, event.dict)
@@ -92,17 +94,10 @@ class WudderClient:
 
     def get_proof(self, evhash: str) -> dict:
         response = self._get_proof_call(evhash)
-        if response is None or response['graphnData'] is None:
-            return
-
+        if response['graphnData'] is None:
+            raise exceptions.NotFoundError('transaction not found')
         graphn_data = json.loads(response['graphnData'])
-        proof_data = {
-            'block_proof': graphn_data['block_proof'],
-        }
-        if 'proof' in graphn_data:
-            proof_data['proof'] = graphn_data['proof']
-            proof_data['prefixes'] = graphn_data['prefixes']
-        return proof_data
+        return graphn_data
 
     def _loop_refresh(self):
         while True:
@@ -137,8 +132,7 @@ class WudderClient:
 
     @staticmethod
     @retry
-    def _create_user_call(email: str, password: str, private_key: str,
-                          graphql_endpoint: str) -> dict:
+    def _create_user_call(email: str, password: str, private_key: str, endpoint: str) -> dict:
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
                 createUser(user: $user, password: $password) {
@@ -153,7 +147,7 @@ class WudderClient:
             },
             'password': password
         }
-        data, errors = GraphQL(graphql_endpoint).execute(mutation, variables)
+        data, errors = GraphQL(endpoint).execute(mutation, variables)
         WudderClient._manage_errors(errors)
         return data['createUser']
 
@@ -198,7 +192,7 @@ class WudderClient:
         mutation = '''
             mutation UpdateUser($user: UserInput!){
                 updateUser(user: $user) {
-                    id
+                    ethAccount
                 }
             }
         '''

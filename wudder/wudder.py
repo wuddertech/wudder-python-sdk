@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from . import utils
-from .utils import retry
 from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
@@ -14,19 +13,18 @@ class Wudder:
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
     @staticmethod
-    @retry
-    def signup(email: str, password: str, private_key_password: str, graphql_endpoint: str = None):
+    def signup(email: str, password: str, private_key_password: str, endpoint: str = None):
         private_key = utils.generate_private_key(private_key_password)
         EasyWeb3(private_key, private_key_password)
-        WudderClient.create_user(email, password, private_key, graphql_endpoint)
+        WudderClient.create_user(email, password, private_key, endpoint)
 
     def __init__(self,
                  email: str,
                  password: str,
                  private_key_password: str,
-                 graphql_endpoint: str = None,
+                 endpoint: str = None,
                  ethereum_endpoint: str = None):
-        self._wudder_client = WudderClient(email, password, private_key_password, graphql_endpoint)
+        self._wudder_client = WudderClient(email, password, private_key_password, endpoint)
         self._login(email, password, private_key_password)
         if ethereum_endpoint is None:
             self._ethereum_endpoint = self.DEFAULT_ETHEREUM_ENDPOINT
@@ -35,18 +33,9 @@ class Wudder:
     def private_key(self) -> dict:
         return self._private_key
 
-    def _login(self, email: str, password: str, private_key_password: str):
-        self._private_key = self._wudder_client.login(email, password, private_key_password)
-
-        # Create private_key if missing
-        if not self._private_key:
-            self._private_key = utils.generate_private_key(private_key_password)
-            self._wudder_client.update_private_key(self._private_key)
-
-        try:
-            self._web3 = EasyWeb3(self._private_key, private_key_password)
-        except ValueError:
-            raise exceptions.AuthError('private key cannot be decrypted')
+    @property
+    def web3(self) -> EasyWeb3:
+        return self._web3
 
     def send(self,
              title: str,
@@ -87,32 +76,15 @@ class Wudder:
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash
 
-    def get_event_tx(self, event: Event) -> dict:
-        cthash = utils.cthash(event.dict)
-        tx = {'cthash': cthash, 'version': graphn.PROTOCOL_VERSION}
-
-        tx['from'] = [event.trace]
-
-        if event.type == EventTypes.TRACE:
-            tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
-        elif event.type == EventTypes.ADD_EVENT:
-            tx['nodecode'] = graphn.Nodecodes.EXTEND_GRAPH
-        elif event.type == EventTypes.VALIDATE:
-            tx['nodecode'] = graphn.Nodecodes.VALIDATE_NODE
-        elif event.type == EventTypes.FILE:
-            tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
-
-        return tx
-
     def check_sighash(self, sighash: str, event: Event) -> bool:
-        tx = self.get_event_tx(event)
+        tx = utils.get_event_tx(event)
         obtained_sighash = self._get_sighash(tx)
         if obtained_sighash == sighash:
             return True
         return False
 
     def check_signature(self, signature: str, event: Event) -> bool:
-        tx = self.get_event_tx(event)
+        tx = utils.get_event_tx(event)
         obtained_signature = self._get_signature(tx)
         if obtained_signature == signature:
             return True
@@ -129,6 +101,24 @@ class Wudder:
     def check_graphn_proof(self, graphn_proof: str, evhash: str) -> bool:
         result = utils.check_compound_proof(graphn_proof)
         return evhash == result['verified_hash']
+
+    def update_private_key(self, private_key: dict, private_key_password: str):
+        self._private_key = private_key
+        self._load_web3(private_key_password)
+        self._wudder_client.update_private_key(private_key)
+
+    def _load_web3(self, private_key_password: str):
+        try:
+            self._web3 = EasyWeb3(self._private_key, private_key_password)
+        except ValueError:
+            raise exceptions.AuthError('private key cannot be decrypted')
+
+    def _login(self, email: str, password: str, private_key_password: str):
+        self._private_key = self._wudder_client.login(email, password, private_key_password)
+        if not self._private_key:
+            self._private_key = utils.generate_private_key(private_key_password)
+            self._wudder_client.update_private_key(self._private_key)
+        self._load_web3(private_key_password)
 
     def _get_signature(self, tx: dict) -> str:
         tx_str = utils.ordered_stringify(tx)
@@ -147,7 +137,7 @@ class Wudder:
         if not event.match(result['event']):
             raise ValueError(f"event mismatch\n{event.dict}\nvs.\n{result['event'].dict}")
 
-        tx = self.get_event_tx(result['event'])
+        tx = utils.get_event_tx(result['event'])
         if utils.ordered_stringify(result['tx']) != utils.ordered_stringify(tx):
             raise ValueError(
                 f"tx mismatch\n{utils.ordered_stringify(result['tx'])}\nvs.\n{utils.ordered_stringify(tx)}"

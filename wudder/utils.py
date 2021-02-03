@@ -8,6 +8,7 @@ from os import makedirs
 import time
 import requests
 from . import graphn
+from .event import Event, EventTypes
 
 RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1
@@ -177,3 +178,20 @@ def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
     headers = {'Content-Type': 'application/json'}
     response_dict = requests.post(endpoint, json=payload, headers=headers).json()
     return response_dict['result']['input']
+
+
+def get_event_tx(event: Event) -> dict:
+    tx = {'cthash': cthash(event.dict), 'version': graphn.PROTOCOL_VERSION}
+
+    tx['from'] = [event.trace]
+
+    if event.type == EventTypes.TRACE:
+        tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
+    elif event.type == EventTypes.ADD_EVENT:
+        tx['nodecode'] = graphn.Nodecodes.EXTEND_GRAPH
+    elif event.type == EventTypes.VALIDATE:
+        tx['nodecode'] = graphn.Nodecodes.VALIDATE_NODE
+    elif event.type == EventTypes.FILE:
+        tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
+
+    return tx

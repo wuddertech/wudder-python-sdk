@@ -24,3 +24,7 @@ class UnexpectedError(Exception):
 
 class BadRequestError(Exception):
     pass
+
+
+class LoginError(Exception):
+    pass
