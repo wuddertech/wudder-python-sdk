@@ -8,7 +8,7 @@ from os import makedirs
 import time
 import requests
 from . import graphn
-from .event import Event, EventTypes
+from .event import Event, Fragment, EventTypes
 
 RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1

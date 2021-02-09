@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-from wudder import Wudder, Event, Fragment, graphn, utils, exceptions
+from wudder import Wudder, Event, graphn, utils, exceptions
 from os import environ
 from tests import env
 from easyweb3 import EasyWeb3
@@ -20,25 +20,28 @@ class TestWudder(unittest.TestCase):
     new_evhash = None
 
     def test_create_trace(self):
-        evhash = self.wudder.send('Title', [Fragment('key', 'value')])
+        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}])
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_create_trace_directly(self):
-        evhash = self.wudder.send('Title', [Fragment('key', 'value')], direct=True)
+        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}], direct=True)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_extend_trace(self):
-        evhash = self.wudder.send('Title', [Fragment('key', 'value')], trace=self.evhash)
+        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}], trace=self.evhash)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_extend_trace_directly(self):
-        evhash = self.wudder.send('Title', [Fragment('key', 'value')],
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
                                   trace=self.evhash,
                                   direct=True)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_extend_trace_two_steps(self):
-        prepared_hash = self.wudder.prepare('Title', [Fragment('key', 'value')])['hash']
+        prepared_hash = self.wudder.prepare('Title', [{'field': 'key', 'value': 'value'}])['hash']
         prepared_tx = self.wudder.get_prepared(prepared_hash)['tx']
         evhash = self.wudder.send_prepared(prepared_tx)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
@@ -65,7 +68,7 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(self.wudder.check_graphn_proof(proof_data['proof'], self.evhash))
 
     def test_signature(self):
-        evhash = self.wudder.send('Title', [Fragment('key', 'value')])
+        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}])
         event = self.wudder.get_event(evhash)
         attempts = 10
         while attempts > 0:

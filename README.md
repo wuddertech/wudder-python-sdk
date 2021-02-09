@@ -21,7 +21,7 @@ Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 > You can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.phoenix.wudder.tech/graphql/')
+Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
 ```
 
 ### Login
@@ -33,19 +33,19 @@ wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
 > Again, you can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.phoenix.wudder.tech/graphql/')
+wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
 ```
 
 ### Create trace
 
 ```python
-trace_evhash = wudder.send('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')])
+trace_evhash = wudder.send('Title', [{'field': 'key', 'value': 'value'}])
 ```
 
 ### Add event to trace
 
 ```python
-evhash = wudder.send('Title', [Fragment('key1', 'value1'), Fragment('key2', 'value2')], trace=trace_evhash)
+evhash = wudder.send('Title', [{'field': 'key', 'value': 'value'}], trace=trace_evhash)
 ```
 
 ### Get event

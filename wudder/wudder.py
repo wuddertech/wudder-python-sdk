@@ -39,11 +39,12 @@ class Wudder:
 
     def send(self,
              title: str,
-             fragments: list,
+             fragments: dict,
              trace: str = None,
              event_type: str = None,
              direct=False) -> str:
         event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
             return self._wudder_client.send_event_directly(title, event)
@@ -61,8 +62,9 @@ class Wudder:
     def get_proof(self, evhash: str) -> dict:
         return self._wudder_client.get_proof(evhash)
 
-    def prepare(self, title: str, fragments: list, trace: str = None) -> dict:
+    def prepare(self, title: str, fragments: dict, trace: str = None) -> dict:
         event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         return self._wudder_client.prepare(title, event)
 
