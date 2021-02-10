@@ -12,7 +12,7 @@ import json
 
 
 class WudderClient:
-    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.phoenix.wudder.tech/graphql/'
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.pre.wudder.tech/graphql/'
 
     def __init__(self, email: str, password: str, private_key_password: str, endpoint: str = None):
         if endpoint is None:
