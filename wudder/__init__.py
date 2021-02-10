@@ -3,4 +3,4 @@
 
 from .wudder import *
 
-__version__ = '3.0.0b0'
+__version__ = '3.0.0a0'
