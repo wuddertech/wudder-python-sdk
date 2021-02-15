@@ -36,6 +36,11 @@ wudder = Wudder('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw
 wudder = Wudder('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
 ```
 
+> You can sign the transactions with a custom local private key (e.g., FNMT private key in the `PKCS#12` format). Check the supported protocols and file formats at [labteral/digsig-python](https://github.com/labteral/digsig-python):
+```python
+wudder = Wudder('email@example.org', 'p4ssw0rd', private_key_path='private_key.p12', private_key_password='k3y_p4ssw0rd')
+```
+
 ### Create trace
 
 ```python
