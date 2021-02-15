@@ -7,6 +7,8 @@ from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from . import exceptions
 from easyweb3 import EasyWeb3
+from digsig import PrivateKey, PrivateKeyExtensions
+import json
 
 
 class Wudder:
@@ -15,16 +17,24 @@ class Wudder:
     @staticmethod
     def signup(email: str, password: str, private_key_password: str, endpoint: str = None):
         private_key = utils.generate_private_key(private_key_password)
-        EasyWeb3(private_key, private_key_password)
+        private_key = PrivateKey(
+            content=json.dumps(private_key),
+            extension=PrivateKeyExtensions.JSON,
+            password=private_key_password,
+        )
         WudderClient.create_user(email, password, private_key, endpoint)
 
     def __init__(self,
                  email: str,
                  password: str,
-                 private_key_password: str,
+                 private_key_path: str = None,
+                 private_key_password: str = None,
                  endpoint: str = None,
                  ethereum_endpoint: str = None):
-        self._wudder_client = WudderClient(email, password, private_key_password, endpoint)
+        self._private_key = None
+        if private_key_path is not None:
+            self._private_key = PrivateKey(private_key_path, private_key_password)
+        self._wudder_client = WudderClient(email, password, endpoint)
         self._login(email, password, private_key_password)
         if ethereum_endpoint is None:
             self._ethereum_endpoint = self.DEFAULT_ETHEREUM_ENDPOINT
@@ -32,10 +42,6 @@ class Wudder:
     @property
     def private_key(self) -> dict:
         return self._private_key
-
-    @property
-    def web3(self) -> EasyWeb3:
-        return self._web3
 
     def send(self,
              title: str,
@@ -71,9 +77,9 @@ class Wudder:
     def get_prepared(self, tmp_hash: str) -> dict:
         return self._wudder_client.get_prepared(tmp_hash)
 
-    def send_prepared(self, tx: dict) -> str:
+    def send_prepared(self, tx: dict, sign=True) -> str:
         signature = None
-        if self._web3 is not None:
+        if sign:
             signature = self._get_signature(tx)
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash
@@ -105,26 +111,30 @@ class Wudder:
         return evhash == result['verified_hash']
 
     def update_private_key(self, private_key: dict, private_key_password: str):
-        self._private_key = private_key
-        self._load_web3(private_key_password)
+        self._private_key = PrivateKey(
+            content=json.dumps(private_key),
+            extension=PrivateKeyExtensions.JSON,
+            password=private_key_password,
+        )
         self._wudder_client.update_private_key(private_key)
 
-    def _load_web3(self, private_key_password: str):
-        try:
-            self._web3 = EasyWeb3(self._private_key, private_key_password)
-        except ValueError:
-            raise exceptions.AuthError('private key cannot be decrypted')
-
     def _login(self, email: str, password: str, private_key_password: str):
-        self._private_key = self._wudder_client.login(email, password, private_key_password)
-        if not self._private_key:
-            self._private_key = utils.generate_private_key(private_key_password)
-            self._wudder_client.update_private_key(self._private_key)
-        self._load_web3(private_key_password)
+        stored_private_key = self._wudder_client.login(email, password)
+        if self.private_key is None:
+            if stored_private_key is None:
+                new_private_key = utils.generate_private_key(private_key_password)
+                self._wudder_client.update_private_key(new_private_key)
+                return
+
+            self._private_key = PrivateKey(
+                content=json.dumps(stored_private_key),
+                extension=PrivateKeyExtensions.JSON,
+                password=private_key_password,
+            )
 
     def _get_signature(self, tx: dict) -> str:
         tx_str = utils.ordered_stringify(tx)
-        signature = self._web3.sign(tx_str)
+        signature = self._private_key.sign(tx_str)
         return signature
 
     def _get_sighash(self, tx: dict) -> str:
@@ -132,7 +142,7 @@ class Wudder:
         sighash = utils.sha3_512(signature)
         return sighash
 
-    def _send_event(self, title: str, event: Event) -> str:
+    def _send_event(self, title: str, event: Event, sign=True) -> str:
         result = self._wudder_client.prepare(title, event)
 
         # Do not trust the server
@@ -146,7 +156,7 @@ class Wudder:
             )
 
         signature = None
-        if self._web3 is not None:
+        if sign:
             signature = self._get_signature(tx)
 
         evhash = self._wudder_client.send_prepared(tx, signature)

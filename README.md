@@ -15,25 +15,25 @@ from wudder import Wudder, Fragment, Event
 ### Create account
 
 ```python
-Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
+Wudder.signup('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw0rd')
 ```
 
 > You can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-Wudder.signup('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
+Wudder.signup('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
 ```
 
 ### Login
 
 ```python
-wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd')
+wudder = Wudder('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw0rd')
 ```
 
 > Again, you can specify a custom GraphQL endpoint with the argument `endpoint`
 
 ```python
-wudder = Wudder('email@example.org', 'p4ssw0rd', 'k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
+wudder = Wudder('email@example.org', 'p4ssw0rd', private_key_password='k3y_p4ssw0rd', endpoint='https://api.pre.wudder.tech/graphql/')
 ```
 
 ### Create trace

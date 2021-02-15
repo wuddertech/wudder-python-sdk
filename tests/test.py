@@ -12,7 +12,7 @@ import time
 class TestWudder(unittest.TestCase):
     wudder = Wudder(environ['WUDDER_EMAIL'],
                     environ['WUDDER_PASSWORD'],
-                    environ['WUDDER_PRIVATE_KEY_PASSWORD'],
+                    private_key_password=environ['WUDDER_PRIVATE_KEY_PASSWORD'],
                     endpoint=environ['GRAPHQL_ENDPOINT'])
 
     evhash = env.evhash
@@ -85,7 +85,7 @@ class TestWudder(unittest.TestCase):
         new_private_key = utils.generate_private_key(environ['WUDDER_PRIVATE_KEY_PASSWORD'])
         new_address = new_private_key['address']
         self.wudder.update_private_key(new_private_key, environ['WUDDER_PRIVATE_KEY_PASSWORD'])
-        self.assertEqual(new_address, self.wudder.web3.account.address[2:].lower())
+        self.assertEqual(new_address, self.wudder.private_key._private_key.address[2:].lower())
 
     def test_get_non_existing_event(self):
         try:

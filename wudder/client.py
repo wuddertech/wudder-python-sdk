@@ -14,7 +14,7 @@ import json
 class WudderClient:
     DEFAULT_GRAPHQL_ENDPOINT = 'https://api.pre.wudder.tech/graphql/'
 
-    def __init__(self, email: str, password: str, private_key_password: str, endpoint: str = None):
+    def __init__(self, email: str, password: str, endpoint: str = None):
         if endpoint is None:
             endpoint = self.DEFAULT_GRAPHQL_ENDPOINT
 
@@ -29,9 +29,9 @@ class WudderClient:
         WudderClient._create_user_call(email, password, private_key, endpoint)
 
     @retry
-    def login(self, email: str, password: str, private_key_password: str) -> dict:
+    def login(self, email: str, password: str) -> dict:
         try:
-            response = self._login_call(email, password, private_key_password)
+            response = self._login_call(email, password)
         except TypeError:
             raise exceptions.LoginError
 
@@ -39,7 +39,6 @@ class WudderClient:
         private_key = response['ethAccount']
         if private_key:
             return json.loads(private_key)
-        return {}
 
     def update_private_key(self, private_key: dict) -> dict:
         private_key_str = utils.ordered_stringify(private_key)
@@ -127,8 +126,13 @@ class WudderClient:
             if errors[0]['code'] == 400:
                 raise exceptions.BadRequestError(errors[0])
 
+            if errors[0]['code'] == 440:
+                raise exceptions.AuthError(errors[0])
+
         except KeyError:
-            raise exceptions.UnexpectedError(errors[0])
+            pass
+
+        raise exceptions.UnexpectedError(errors[0])
 
     @staticmethod
     @retry
@@ -152,7 +156,7 @@ class WudderClient:
         return data['createUser']
 
     @retry
-    def _login_call(self, email: str, password: str, private_key_password: str) -> dict:
+    def _login_call(self, email: str, password: str) -> dict:
         mutation = '''
             mutation Login($email: String!, $password: String!) {
                 login(email: $email, password: $password){
