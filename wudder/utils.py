@@ -45,19 +45,22 @@ def cthash(content: dict) -> str:
     for fragment in content['fragments']:
 
         # Visibility is not taken into account
-        del fragment['visibility']
+        if 'visibility' in fragment:
+            del fragment['visibility']
 
         if isinstance(fragment, str) and len(fragment) == graphn.HASH_LENGTH:
             fragment_hashes.append(fragment)
         else:
             fragment_hashes.append(sha3_512(ordered_stringify(fragment)))
 
-    original_content = ordered_stringify({
+    original_content = {
         'type': content['type'],
         'trace': content['trace'],
         'fragment_hashes': sorted(fragment_hashes),
-        'salt': content['salt']
-    })
+    }
+    if 'salt' in content:
+        original_content['salt'] = content['salt']
+    original_content = ordered_stringify(original_content)
 
     return sha3_512(original_content)
 
