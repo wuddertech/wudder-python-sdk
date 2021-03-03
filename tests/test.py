@@ -60,7 +60,7 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(
             self.wudder.check_ethereum_proof(
                 proof_data['proof'],
-                proof_data['prefixes']['ethereum']['tx_hash'],
+                proof_data['l1_suffixes']['ethereum']['tx_hash'],
             ))
 
     def test_check_graphn_proof(self):

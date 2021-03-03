@@ -74,7 +74,7 @@ proof = wudder.get_proof(evhash)
 ### Check Ethereum proof
 
 ```python
-wudder.check_ethereum_proof(proof['proof'], proof['prefixes']['ethereum']['tx_hash']))
+wudder.check_ethereum_proof(proof['proof'], proof['l1_suffixes']['ethereum']['tx_hash']))
 ```
 
 ### Create a local backup of the private key
