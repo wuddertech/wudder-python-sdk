@@ -33,10 +33,10 @@ def sha3_512(text: str) -> str:
 
 
 def ordered_stringify(unordered_dict: dict) -> str:
-    private_keys = sorted(list(unordered_dict.keys()))
+    keys = sorted(list(unordered_dict.keys()))
     new_dict = dict()
-    for private_key in private_keys:
-        new_dict[private_key] = unordered_dict[private_key]
+    for key in keys:
+        new_dict[key] = unordered_dict[key]
     return json.dumps(new_dict, separators=(',', ':'), ensure_ascii=False)
 
 
@@ -184,9 +184,7 @@ def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
 
 
 def get_event_tx(event: Event) -> dict:
-    tx = {'cthash': cthash(event.dict), 'version': graphn.PROTOCOL_VERSION}
-
-    tx['from'] = [event.trace]
+    tx = {'cthash': cthash(event.dict), 'version': graphn.PROTOCOL_VERSION, 'from': [event.trace]}
 
     if event.type == EventTypes.TRACE:
         tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH

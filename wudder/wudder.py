@@ -48,13 +48,15 @@ class Wudder:
              fragments: dict,
              trace: str = None,
              event_type: str = None,
-             direct=False) -> str:
+             direct=False,
+             full_signature=True,
+             sighash_signature=False) -> str:
         event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
             return self._wudder_client.send_event_directly(title, event)
-        return self._send_event(title, event)
+        return self._send_event(title, event, full_signature, sighash_signature)
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
@@ -77,10 +79,12 @@ class Wudder:
     def get_prepared(self, tmp_hash: str) -> dict:
         return self._wudder_client.get_prepared(tmp_hash)
 
-    def send_prepared(self, tx: dict, sign=True) -> str:
+    def send_prepared(self, tx: dict, full_signature=True, sighash_signature=False) -> str:
         signature = None
-        if sign:
+        if full_signature:
             signature = self._get_signature(tx)
+        if sighash_signature:
+            signature = self._get_sighash(tx)
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash
 
@@ -142,7 +146,8 @@ class Wudder:
         sighash = utils.sha3_512(signature)
         return sighash
 
-    def _send_event(self, title: str, event: Event, sign=True) -> str:
+    def _send_event(self, title: str, event: Event, full_signature: bool,
+                    sighash_signature: bool) -> str:
         result = self._wudder_client.prepare(title, event)
 
         # Do not trust the server
@@ -156,8 +161,10 @@ class Wudder:
             )
 
         signature = None
-        if sign:
+        if full_signature:
             signature = self._get_signature(tx)
+        if sighash_signature:
+            signature = self._get_sighash(tx)
 
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash

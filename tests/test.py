@@ -19,8 +19,28 @@ class TestWudder(unittest.TestCase):
     event_dict = env.event_dict
     new_evhash = None
 
-    def test_create_trace(self):
-        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}])
+    def test_create_trace_unsigned(self):
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
+                                  full_signature=False)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
+
+    def test_create_trace_signature(self):
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
+                                  full_signature=True)
+        self.assertEqual(len(evhash), graphn.HASH_LENGTH)
+
+    def test_create_trace_sighash(self):
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
+                                  sighash_signature=True)
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_create_trace_directly(self):
@@ -68,7 +88,11 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(self.wudder.check_graphn_proof(proof_data['proof'], self.evhash))
 
     def test_signature(self):
-        evhash = self.wudder.send('Title', [{'field': 'key', 'value': 'value'}])
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
+                                  full_signature=True)
         event = self.wudder.get_event(evhash)
         attempts = 10
         while attempts > 0:
@@ -76,6 +100,24 @@ class TestWudder(unittest.TestCase):
             try:
                 signature = self.wudder.get_proof(evhash)['signature']
                 self.assertTrue(self.wudder.check_signature(signature, event))
+                return
+            except exceptions.NotFoundError:
+                time.sleep(1)
+        self.assertTrue(False)
+
+    def test_sighash(self):
+        evhash = self.wudder.send('Title', [{
+            'field': 'key',
+            'value': 'value'
+        }],
+                                  sighash_signature=True)
+        event = self.wudder.get_event(evhash)
+        attempts = 10
+        while attempts > 0:
+            attempts -= 1
+            try:
+                sighash = self.wudder.get_proof(evhash)['signature']
+                self.assertTrue(self.wudder.check_sighash(sighash, event))
                 return
             except exceptions.NotFoundError:
                 time.sleep(1)

@@ -71,8 +71,6 @@ class WudderClient:
 
     def send_prepared(self, tx: dict, signature: str = None) -> str:
         tx_str = utils.ordered_stringify(tx)
-        if signature is None:
-            signature = ''
         response = self._send_prepared_call(tx_str, signature)
         return response['evhash']
 
