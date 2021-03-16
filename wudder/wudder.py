@@ -6,8 +6,9 @@ from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from . import exceptions
-from easyweb3 import EasyWeb3
-from digsig import PrivateKey, PrivateKeyExtensions
+from digsig.auto import PrivateKeyAuto
+from digsig.ecdsa import EcdsaPrivateKey, EcdsaFormats, EcdsaModes
+from digsig.errors import InvalidSignatureError
 import json
 
 
@@ -17,11 +18,6 @@ class Wudder:
     @staticmethod
     def signup(email: str, password: str, private_key_password: str, endpoint: str = None):
         private_key = utils.generate_private_key(private_key_password)
-        private_key = PrivateKey(
-            content=json.dumps(private_key),
-            extension=PrivateKeyExtensions.JSON,
-            password=private_key_password,
-        )
         WudderClient.create_user(email, password, private_key, endpoint)
 
     def __init__(self,
@@ -33,7 +29,8 @@ class Wudder:
                  ethereum_endpoint: str = None):
         self._private_key = None
         if private_key_path is not None:
-            self._private_key = PrivateKey(private_key_path, private_key_password)
+            self._private_key = PrivateKeyAuto.get_instance(filepath=private_key_path,
+                                                            password=private_key_password)
         self._wudder_client = WudderClient(email, password, endpoint)
         self._login(email, password, private_key_password)
         if ethereum_endpoint is None:
@@ -88,22 +85,8 @@ class Wudder:
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash
 
-    def check_sighash(self, sighash: str, event: Event) -> bool:
-        tx = utils.get_event_tx(event)
-        obtained_sighash = self._get_sighash(tx)
-        if obtained_sighash == sighash:
-            return True
-        return False
-
-    def check_signature(self, signature: str, event: Event) -> bool:
-        tx = utils.get_event_tx(event)
-        obtained_signature = self._get_signature(tx)
-        if obtained_signature == signature:
-            return True
-        return False
-
     def check_ethereum_proof(self, graphn_proof: str, anchor_tx: str) -> bool:
-        root_hash = utils.check_compound_proof(graphn_proof)['root_hash']
+        root_hash = utils.check_proof(graphn_proof)['root_hash']
         engraved_root_hash = utils.get_ethereum_tx_input(anchor_tx,
                                                          self._ethereum_endpoint)[2:]  # remove 0x
         if root_hash == engraved_root_hash:
@@ -111,34 +94,39 @@ class Wudder:
         return False
 
     def check_graphn_proof(self, graphn_proof: str, evhash: str) -> bool:
-        result = utils.check_compound_proof(graphn_proof)
+        result = utils.check_proof(graphn_proof)
         return evhash == result['verified_hash']
 
     def update_private_key(self, private_key: dict, private_key_password: str):
-        self._private_key = PrivateKey(
-            content=json.dumps(private_key),
-            extension=PrivateKeyExtensions.JSON,
+        self._private_key = EcdsaPrivateKey(
+            key=json.dumps(private_key),
             password=private_key_password,
+            mode=EcdsaModes.SECP256K1_KECCAK_256_ETHEREUM,
+            key_format=EcdsaFormats.ETHEREUM_JSON,
         )
         self._wudder_client.update_private_key(private_key)
 
     def _login(self, email: str, password: str, private_key_password: str):
         stored_private_key = self._wudder_client.login(email, password)
-        if self.private_key is None:
-            if stored_private_key is None:
-                new_private_key = utils.generate_private_key(private_key_password)
-                self._wudder_client.update_private_key(new_private_key)
-                return
 
-            self._private_key = PrivateKey(
-                content=json.dumps(stored_private_key),
-                extension=PrivateKeyExtensions.JSON,
+        if self.private_key:
+            return
+
+        if stored_private_key is not None:
+            self._private_key = EcdsaPrivateKey(
+                key=json.dumps(stored_private_key),
                 password=private_key_password,
+                mode=EcdsaModes.SECP256K1_KECCAK_256_ETHEREUM,
+                key_format=EcdsaFormats.ETHEREUM_JSON,
             )
+            return
+
+        stored_private_key = utils.generate_private_key(private_key_password)
+        self._wudder_client.update_private_key(stored_private_key)
 
     def _get_signature(self, tx: dict) -> str:
         tx_str = utils.ordered_stringify(tx)
-        signature = self._private_key.sign(tx_str)
+        signature = self._private_key.sign(tx_str).hex()
         return signature
 
     def _get_sighash(self, tx: dict) -> str:

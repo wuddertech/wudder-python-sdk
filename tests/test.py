@@ -5,8 +5,8 @@ import unittest
 from wudder import Wudder, Event, graphn, utils, exceptions
 from os import environ
 from tests import env
-from easyweb3 import EasyWeb3
 import time
+from digsig.hashing import hash_message, HashFunctions
 
 
 class TestWudder(unittest.TestCase):
@@ -72,7 +72,7 @@ class TestWudder(unittest.TestCase):
 
     def test_get_proof(self):
         proof_data = self.wudder.get_proof(self.evhash)
-        result = utils.check_compound_proof(proof_data['proof'])
+        result = utils.check_proof(proof_data['proof'])
         self.assertEqual(self.evhash, result['verified_hash'])
 
     def test_check_ethereum_proof(self):
@@ -87,47 +87,12 @@ class TestWudder(unittest.TestCase):
         proof_data = self.wudder.get_proof(self.evhash)
         self.assertTrue(self.wudder.check_graphn_proof(proof_data['proof'], self.evhash))
 
-    def test_signature(self):
-        evhash = self.wudder.send('Title', [{
-            'field': 'key',
-            'value': 'value'
-        }],
-                                  full_signature=True)
-        event = self.wudder.get_event(evhash)
-        attempts = 10
-        while attempts > 0:
-            attempts -= 1
-            try:
-                signature = self.wudder.get_proof(evhash)['signature']
-                self.assertTrue(self.wudder.check_signature(signature, event))
-                return
-            except exceptions.NotFoundError:
-                time.sleep(1)
-        self.assertTrue(False)
-
-    def test_sighash(self):
-        evhash = self.wudder.send('Title', [{
-            'field': 'key',
-            'value': 'value'
-        }],
-                                  sighash_signature=True)
-        event = self.wudder.get_event(evhash)
-        attempts = 10
-        while attempts > 0:
-            attempts -= 1
-            try:
-                sighash = self.wudder.get_proof(evhash)['signature']
-                self.assertTrue(self.wudder.check_sighash(sighash, event))
-                return
-            except exceptions.NotFoundError:
-                time.sleep(1)
-        self.assertTrue(False)
-
     def test_update_private_key(self):
         new_private_key = utils.generate_private_key(environ['WUDDER_PRIVATE_KEY_PASSWORD'])
         new_address = new_private_key['address']
         self.wudder.update_private_key(new_private_key, environ['WUDDER_PRIVATE_KEY_PASSWORD'])
-        self.assertEqual(new_address, self.wudder.private_key._private_key.address[2:].lower())
+        self.assertEqual(new_address,
+                         self.wudder.private_key.public_key.ethereum_address[2:].lower())
 
     def test_get_non_existing_event(self):
         try:

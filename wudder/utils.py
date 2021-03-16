@@ -3,7 +3,7 @@
 
 import hashlib
 import json
-from easyweb3 import EasyWeb3
+from eth_account import Account as EthereumAccount
 from os import makedirs
 import time
 import requests
@@ -66,7 +66,7 @@ def cthash(content: dict) -> str:
 
 
 def generate_private_key(password: str) -> dict:
-    private_key = EasyWeb3().web3.eth.account.create()
+    private_key = EthereumAccount().create()
     private_key_dict = private_key.encrypt(password)
     try:
         makedirs('./private-keys')
@@ -85,12 +85,12 @@ def dbmt_hash(value: str, level: int = None) -> str:
     return sha3_512(f'{level}{value}')
 
 
-def check_compound_proof(compound_proof: str = None,
-                         tree_proof: str = None,
-                         block_proof: str = None,
-                         blocktree_proof: str = None) -> dict:
+def check_proof(compound_proof: str = None,
+                tree_proof: str = None,
+                block_proof: str = None,
+                blocktree_proof: str = None) -> dict:
     if compound_proof is not None:
-        return check_compound_proof(None, *compound_proof.split(':'))
+        return check_proof(None, *compound_proof.split(':'))
 
     # Check tree proof
     tree_proof_result = check_tree_proof(tree_proof)
@@ -107,6 +107,7 @@ def check_compound_proof(compound_proof: str = None,
         return {'valid': False}
 
     if blocktree_proof is None:
+        block_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH + 1]
         return block_proof_result
 
     # Are proofs linked? (2/2)
