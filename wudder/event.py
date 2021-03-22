@@ -58,7 +58,11 @@ class Fragment:
 
     @property
     def dict(self) -> dict:
-        fragment_dict = {'field': self.field, 'value': self.value, 'visibility': self.visibility}
+        fragment_dict = {
+            'field': self.field,
+            'value': self.value,
+            'visibility': self.visibility
+        }
         if self.salt is not None:
             fragment_dict['salt'] = self.salt
         return fragment_dict
@@ -100,7 +104,8 @@ class Event:
         return fragments
 
     def match(self, event: Event) -> bool:
-        for self_fragment, event_fragment in zip(self.fragments, event.fragments):
+        for self_fragment, event_fragment in zip(self.fragments,
+                                                 event.fragments):
             if not self_fragment.match(event_fragment):
                 return False
 
@@ -132,10 +137,17 @@ class Event:
         self.trace = trace
 
     def _load_event_dict(self, event: dict):
-        self._set_fragments([Fragment(fragment_dict=fragment) for fragment in event['fragments']])
+        self._set_fragments([
+            Fragment(fragment_dict=fragment) for fragment in event['fragments']
+        ])
         self._set_trace(event['trace'])
         self.type = event['type']
-        self.salt = event['salt']
+
+        if 'salt' in event:
+            self.salt = event['salt']
+        else:
+            self.salt = None
+
         self.timestamp = event['timestamp']
 
         if 'proof' in event:

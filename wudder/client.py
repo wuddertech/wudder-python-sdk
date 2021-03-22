@@ -9,6 +9,7 @@ from easygraphql import GraphQL
 from threading import Thread
 import time
 import json
+from typing import Dict
 
 
 class WudderClient:
@@ -23,13 +24,16 @@ class WudderClient:
         Thread(target=self._loop_refresh, daemon=True).start()
 
     @staticmethod
-    def create_user(email: str, password: str, private_key: str, endpoint: str = None):
+    def create_user(email: str,
+                    password: str,
+                    private_key: str,
+                    endpoint: str = None):
         if endpoint is None:
             endpoint = WudderClient.DEFAULT_GRAPHQL_ENDPOINT
         WudderClient._create_user_call(email, password, private_key, endpoint)
 
     @retry
-    def login(self, email: str, password: str) -> dict:
+    def login(self, email: str, password: str) -> Dict:
         try:
             response = self._login_call(email, password)
         except TypeError:
@@ -40,7 +44,7 @@ class WudderClient:
         if private_key:
             return json.loads(private_key)
 
-    def update_private_key(self, private_key: dict) -> dict:
+    def update_private_key(self, private_key: dict) -> Dict:
         private_key_str = utils.ordered_stringify(private_key)
         response = self._update_private_key_call(private_key_str)
         return response['ethAccount']
@@ -49,7 +53,7 @@ class WudderClient:
         response = self._send_event_directly_call(title, event.dict)
         return response['evhash']
 
-    def prepare(self, title: str, event: Event) -> dict:
+    def prepare(self, title: str, event: Event) -> Dict:
         response = self._prepare_call(title, event.dict)
         output_data = {
             'tx': json.loads(response['formattedTransaction']),
@@ -59,7 +63,7 @@ class WudderClient:
         }
         return output_data
 
-    def get_prepared(self, tmp_hash: str) -> dict:
+    def get_prepared(self, tmp_hash: str) -> Dict:
         response = self._get_prepared_call(tmp_hash)
         output_data = {
             'tx': json.loads(response['formattedTransaction']),
@@ -74,7 +78,7 @@ class WudderClient:
         response = self._send_prepared_call(tx_str, signature)
         return response['evhash']
 
-    def get_event(self, evhash: str) -> Event:
+    def get_event(self, evhash: str) -> Dict:
         response = self._get_event_call(evhash)
         original_content = json.loads(response['originalContent'])['content']
         event_dict = {
@@ -82,19 +86,17 @@ class WudderClient:
             'trace': original_content['trace'],
             'fragments': original_content['fragments'],
             'timestamp': original_content['timestamp'],
-            'salt': original_content['salt']
         }
-        return Event(event_dict=event_dict)
+        if 'salt' in original_content:
+            event_dict['salt'] = original_content['salt']
 
-    def get_trace(self, evhash: str) -> dict:
+        if 'graphnData' in response:
+            event_dict['proof_data'] = json.loads(response['graphnData'])
+
+        return event_dict
+
+    def get_trace(self, evhash: str) -> Dict:
         return self._get_trace_call(evhash)
-
-    def get_proof(self, evhash: str) -> dict:
-        response = self._get_proof_call(evhash)
-        if response['graphnData'] is None:
-            raise exceptions.NotFoundError('transaction not found')
-        graphn_data = json.loads(response['graphnData'])
-        return graphn_data
 
     def _loop_refresh(self):
         while True:
@@ -134,7 +136,8 @@ class WudderClient:
 
     @staticmethod
     @retry
-    def _create_user_call(email: str, password: str, private_key: str, endpoint: str) -> dict:
+    def _create_user_call(email: str, password: str, private_key: str,
+                          endpoint: str) -> Dict:
         mutation = '''
             mutation CreateUser($user: UserInput!, $password: String!){
                 createUser(user: $user, password: $password) {
@@ -154,7 +157,7 @@ class WudderClient:
         return data['createUser']
 
     @retry
-    def _login_call(self, email: str, password: str) -> dict:
+    def _login_call(self, email: str, password: str) -> Dict:
         mutation = '''
             mutation Login($email: String!, $password: String!) {
                 login(email: $email, password: $password){
@@ -173,7 +176,7 @@ class WudderClient:
         return data['login']
 
     @retry
-    def _refresh_call(self) -> dict:
+    def _refresh_call(self) -> Dict:
         mutation = '''
             mutation RefreshToken($refreshToken: String!) {
                 refreshToken(token: $refreshToken){
@@ -190,7 +193,7 @@ class WudderClient:
         return data['refreshToken']
 
     @retry
-    def _update_private_key_call(self, private_key: str) -> dict:
+    def _update_private_key_call(self, private_key: str) -> Dict:
         mutation = '''
             mutation UpdateUser($user: UserInput!){
                 updateUser(user: $user) {
@@ -208,7 +211,7 @@ class WudderClient:
         return data['updateUser']
 
     @retry
-    def _send_event_directly_call(self, title: str, event: dict) -> dict:
+    def _send_event_directly_call(self, title: str, event: dict) -> Dict:
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!, $displayName: String!){
                 createEvidence(evidence: $evidence, displayName: $displayName){
@@ -227,7 +230,7 @@ class WudderClient:
         return data['createEvidence']
 
     @retry
-    def _prepare_call(self, title: str, event: dict) -> dict:
+    def _prepare_call(self, title: str, event: dict) -> Dict:
         mutation = '''
             mutation PrepareEvidence($content: ContentInput!, $displayName: String!){
                 prepareEvidence(content: $content, displayName: $displayName){
@@ -263,7 +266,7 @@ class WudderClient:
         return data['confirmPreparedEvidence']
 
     @retry
-    def _get_prepared_call(self, tmp_hash: str) -> dict:
+    def _get_prepared_call(self, tmp_hash: str) -> Dict:
         query = '''
             query PreparedEvidence($hash: String!){
                 preparedEvidence(hash: $hash){
@@ -300,7 +303,7 @@ class WudderClient:
         return data['evidence']
 
     @retry
-    def _get_trace_call(self, evhash: str) -> dict:
+    def _get_trace_call(self, evhash: str) -> Dict:
         query = '''
             query GetTrace($evhash: String!){
                 trace(evhash: $evhash){
@@ -327,19 +330,3 @@ class WudderClient:
         data, errors = self.graphql.execute(query, variables)
         WudderClient._manage_errors(errors)
         return data['getTrace']
-
-    @retry
-    def _get_proof_call(self, evhash: str) -> dict:
-        query = '''
-            query Evidence($evhash: String!){
-                evidence(evhash: $evhash){
-                    graphnData
-                }
-            }
-        '''
-        variables = {
-            'evhash': evhash,
-        }
-        data, errors = self.graphql.execute(query, variables)
-        WudderClient._manage_errors(errors)
-        return data['evidence']

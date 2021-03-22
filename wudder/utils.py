@@ -43,16 +43,15 @@ def ordered_stringify(unordered_dict: dict) -> str:
 def cthash(content: dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
-
-        # Visibility is not taken into account
-        if 'visibility' in fragment:
-            del fragment['visibility']
+        pure_fragment = {'field': fragment['field'], 'value': fragment['value']}
+        if 'salt' in fragment:
+            pure_fragment['salt'] = fragment['salt']
+        fragment = pure_fragment
 
         if isinstance(fragment, str) and len(fragment) == graphn.HASH_LENGTH:
             fragment_hashes.append(fragment)
         else:
             fragment_hashes.append(sha3_512(ordered_stringify(fragment)))
-
     original_content = {
         'type': content['type'],
         'trace': content['trace'],
@@ -61,8 +60,8 @@ def cthash(content: dict) -> str:
     if 'salt' in content:
         original_content['salt'] = content['salt']
     original_content = ordered_stringify(original_content)
-
-    return sha3_512(original_content)
+    cthash = sha3_512(original_content)
+    return cthash
 
 
 def generate_private_key(password: str) -> dict:
@@ -98,7 +97,9 @@ def check_proof(compound_proof: str = None,
         return {'valid': False}
 
     # Are proofs linked? (1/2)
-    proofs_linked = tree_proof_result['root_hash'] == block_proof[1:graphn.HASH_LENGTH + 1]
+    proofs_linked = tree_proof_result['root_hash'] == block_proof[1:graphn.
+                                                                  HASH_LENGTH +
+                                                                  1]
     if not proofs_linked:
         return {'valid': False}
 
@@ -107,17 +108,20 @@ def check_proof(compound_proof: str = None,
         return {'valid': False}
 
     if blocktree_proof is None:
-        block_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH + 1]
+        block_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH +
+                                                         1]
         return block_proof_result
 
     # Are proofs linked? (2/2)
-    proofs_linked = block_proof_result['root_hash'] == blocktree_proof[1:graphn.HASH_LENGTH + 1]
+    proofs_linked = block_proof_result['root_hash'] == blocktree_proof[
+        1:graphn.HASH_LENGTH + 1]
     if not proofs_linked:
         return {'valid': False}
 
     # Check blocktree proof
     blocktree_proof_result = check_tree_proof(blocktree_proof)
-    blocktree_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH + 1]
+    blocktree_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH +
+                                                         1]
     return blocktree_proof_result
 
 
@@ -172,20 +176,34 @@ def check_tree_proof(proof: str) -> dict:
 
     # root_hash == tree hash, not merkle_root_hash
     if current_hash == root_hash:
-        return {'verified_hash': items[0][1:], 'root_hash': root_hash, 'valid': True}
+        return {
+            'verified_hash': items[0][1:],
+            'root_hash': root_hash,
+            'valid': True
+        }
 
     return {'valid': False}
 
 
 def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
-    payload = {"jsonrpc": "2.0", "method": "eth_getTransactionByHash", "params": [tx_hash], "id": 1}
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "eth_getTransactionByHash",
+        "params": [tx_hash],
+        "id": 1
+    }
     headers = {'Content-Type': 'application/json'}
-    response_dict = requests.post(endpoint, json=payload, headers=headers).json()
+    response_dict = requests.post(endpoint, json=payload,
+                                  headers=headers).json()
     return response_dict['result']['input']
 
 
 def get_event_tx(event: Event) -> dict:
-    tx = {'cthash': cthash(event.dict), 'version': graphn.PROTOCOL_VERSION, 'from': [event.trace]}
+    tx = {
+        'cthash': cthash(event.dict),
+        'version': graphn.PROTOCOL_VERSION,
+        'from': [event.trace]
+    }
 
     if event.type == EventTypes.TRACE:
         tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
