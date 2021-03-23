@@ -64,7 +64,10 @@ class WudderClient:
         return output_data
 
     def get_prepared(self, tmp_hash: str) -> Dict:
-        response = self._get_prepared_call(tmp_hash)
+        try:
+            response = self._get_prepared_call(tmp_hash)
+        except exceptions.NotFoundError:
+            return None
         output_data = {
             'tx': json.loads(response['formattedTransaction']),
             'event': Event(event_dict=json.loads(response['preparedContent'])),
@@ -79,14 +82,24 @@ class WudderClient:
         return response['evhash']
 
     def get_event(self, evhash: str) -> Dict:
-        response = self._get_event_call(evhash)
-        event_dict = {'event': json.loads(response['originalContent'])['content']}
+        try:
+            response = self._get_event_call(evhash)
+        except exceptions.NotFoundError:
+            return None
+        event_dict = {
+            'event': json.loads(response['originalContent'])['content']
+        }
         if 'graphnData' in response:
             event_dict.update(json.loads(response['graphnData']))
         return event_dict
 
     def get_trace(self, evhash: str) -> Dict:
-        return self._get_trace_call(evhash)
+        # TODO transform response as in get_event
+        raise NotImplementedError
+        # try:
+        #     response = self._get_trace_call(evhash)
+        # except exceptions.NotFoundError:
+        #     return None
 
     def _loop_refresh(self):
         while True:
