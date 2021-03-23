@@ -78,7 +78,7 @@ class TestWudder(unittest.TestCase):
         self.assertEqual(len(evhash), graphn.HASH_LENGTH)
 
     def test_get_event(self):
-        event_dict = self.wudder.get_event(self.evhash)
+        event_dict = self.wudder.get_event(self.evhash)['event']
         self.assertTrue(
             Event(event_dict=event_dict).match(
                 Event(event_dict=self.event_dict)))
@@ -93,7 +93,7 @@ class TestWudder(unittest.TestCase):
         self.assertTrue(
             self.wudder.check_ethereum_proof(
                 proof_data['proof'],
-                proof_data['l1_suffixes']['ethereum']['tx_hash'],
+                proof_data['l1_suffixes']['ethereum'],
             ))
 
     def test_check_graphn_proof(self):

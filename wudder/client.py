@@ -80,19 +80,9 @@ class WudderClient:
 
     def get_event(self, evhash: str) -> Dict:
         response = self._get_event_call(evhash)
-        original_content = json.loads(response['originalContent'])['content']
-        event_dict = {
-            'type': original_content['type'],
-            'trace': original_content['trace'],
-            'fragments': original_content['fragments'],
-            'timestamp': original_content['timestamp'],
-        }
-        if 'salt' in original_content:
-            event_dict['salt'] = original_content['salt']
-
+        event_dict = {'event': json.loads(response['originalContent'])['content']}
         if 'graphnData' in response:
-            event_dict['proof_data'] = json.loads(response['graphnData'])
-
+            event_dict.update(json.loads(response['graphnData']))
         return event_dict
 
     def get_trace(self, evhash: str) -> Dict:
