@@ -25,4 +25,4 @@ setup(
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    install_requires=['requests', 'easygraphql', 'easyweb3', 'digsig'])
+    install_requires=['requests', 'easygraphql', 'easyweb3', 'digsig >= 1.216.0, < 2.0.0'])

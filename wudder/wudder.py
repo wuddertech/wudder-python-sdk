@@ -6,8 +6,7 @@ from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from . import exceptions
-from digsig.auto import PrivateKeyAuto
-from digsig.ecdsa import EcdsaPrivateKey, EcdsaFormats, EcdsaModes
+from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
 from digsig.errors import InvalidSignatureError
 import json
 from typing import Dict
@@ -27,14 +26,27 @@ class Wudder:
     def __init__(self,
                  email: str,
                  password: str,
+                 private_key=None,
+                 private_key_mode: str = None,
+                 private_key_format: str = None,
                  private_key_password: str = None,
                  private_key_path: str = None,
                  endpoint: str = None,
                  ethereum_endpoint: str = None):
         self._private_key = None
-        if private_key_path is not None:
-            self._private_key = PrivateKeyAuto.get_instance(
-                filepath=private_key_path, password=private_key_password)
+        if private_key is not None:
+            self._private_key = PrivateKey.get_instance(
+                key=private_key,
+                mode=private_key_mode,
+                key_format=private_key_format,
+            )
+        elif private_key_path is not None:
+            self._private_key = PrivateKey.get_instance(
+                filepath=private_key_path,
+                password=private_key_password,
+                mode=private_key_mode,
+                key_format=private_key_format,
+            )
         self._wudder_client = WudderClient(email, password, endpoint)
         self._login(email, password, private_key_password)
         if ethereum_endpoint is None:
