@@ -9,7 +9,7 @@ from . import exceptions
 from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
 from digsig.errors import InvalidSignatureError
 import json
-from typing import Dict
+from typing import Dict, List
 
 
 class Wudder:
@@ -70,6 +70,26 @@ class Wudder:
         if direct:
             return self._wudder_client.send_event_directly(title, event)
         return self._send_event(title, event, full_signature, sighash_signature)
+
+    def send_many(self,
+             event_bundles: List[Dict],
+             full_signature=True,
+             sighash_signature=False) -> str:
+        
+        processed_events = []
+        for event_bundle in event_bundles:
+            trace = event_bundle['trace'] if 'trace' in event_bundle else None
+
+            event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+            fragments = [Fragment(**fragment) for fragment in event_bundle['fragments']]
+            event = Event(fragments=fragments, trace=trace, event_type=event_type)
+            processed_events.append({
+                'event':event,
+                'title': event_bundle['title']
+            })
+        
+        return self._wudder_client.send_events_directly(processed_events)
+        
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
