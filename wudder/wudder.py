@@ -69,27 +69,25 @@ class Wudder:
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
             return self._wudder_client.send_event_directly(title, event)
-        return self._send_event(title, event, full_signature, sighash_signature)
+        return self._send_event(title, event, full_signature,
+                                sighash_signature)
 
-    def send_many(self,
-             event_bundles: List[Dict],
-             full_signature=True,
-             sighash_signature=False) -> str:
-        
+    def send_many(self, event_bundles: List[Dict]) -> str:
         processed_events = []
         for event_bundle in event_bundles:
             trace = event_bundle['trace'] if 'trace' in event_bundle else None
-
             event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
-            fragments = [Fragment(**fragment) for fragment in event_bundle['fragments']]
-            event = Event(fragments=fragments, trace=trace, event_type=event_type)
+            fragments = [
+                Fragment(**fragment) for fragment in event_bundle['fragments']
+            ]
+            event = Event(fragments=fragments,
+                          trace=trace,
+                          event_type=event_type)
             processed_events.append({
-                'event':event,
+                'event': event,
                 'title': event_bundle['title']
             })
-        
         return self._wudder_client.send_events_directly(processed_events)
-        
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
@@ -160,12 +158,12 @@ class Wudder:
         stored_private_key = utils.generate_private_key(private_key_password)
         self._wudder_client.update_private_key(stored_private_key)
 
-    def _get_signature(self, tx: dict) -> str:
+    def _get_signature(self, tx: Dict) -> str:
         tx_str = utils.ordered_stringify(tx)
         signature = self._private_key.sign(tx_str).hex()
         return signature
 
-    def _get_sighash(self, tx: dict) -> str:
+    def _get_sighash(self, tx: Dict) -> str:
         signature = self._get_signature(tx)
         sighash = utils.sha3_512(signature)
         return sighash
@@ -180,7 +178,8 @@ class Wudder:
                 f"event mismatch\n{event.dict}\nvs.\n{result['event'].dict}")
 
         tx = utils.get_event_tx(result['event'])
-        if utils.ordered_stringify(result['tx']) != utils.ordered_stringify(tx):
+        if utils.ordered_stringify(
+                result['tx']) != utils.ordered_stringify(tx):
             raise ValueError(
                 f"tx mismatch\n{utils.ordered_stringify(result['tx'])}\nvs.\n{utils.ordered_stringify(tx)}"
             )

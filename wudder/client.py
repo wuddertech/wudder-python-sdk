@@ -53,14 +53,13 @@ class WudderClient:
         response = self._send_event_directly_call(title, event.dict)
         return response['evhash']
 
-    def send_events_directly(self, event_bundles: List[Dict]) -> str:
-        print(event_bundles)
-        response = self._send_events_directly_call({
+    def send_events_directly(self, event_bundles: List[Dict]) -> List[str]:
+        event_bundles = [{
             'event': event_bundle['event'].dict,
             'title': event_bundle['title']
-        } for event_bundle in event_bundles)
-        
-        return [ item['evhash'] for item in response]
+        } for event_bundle in event_bundles]
+        response = self._send_events_directly_call(event_bundles)
+        return [item['evhash'] for item in response]
 
     def prepare(self, title: str, event: Event) -> Dict:
         response = self._prepare_call(title, event.dict)
@@ -121,7 +120,7 @@ class WudderClient:
         self.graphql.set_headers({'x-jwt-token': token})
 
     @staticmethod
-    def _manage_errors(errors: list):
+    def _manage_errors(errors: List):
         if not errors:
             return
 
@@ -250,17 +249,13 @@ class WudderClient:
                 }
             }
         '''
-
-        variables = {
-            'evidences': []
-        }
-
+        evidences = []
         for event_bundle in event_bundles:
-            variables['evidences'].append({
+            evidences.append({
                 'content': event_bundle['event'],
-                'displayName':event_bundle['title'],
+                'displayName': event_bundle['title'],
             })
-
+        variables = {'evidences': evidences}
         data, errors = self.graphql.execute(mutation, variables)
         WudderClient._manage_errors(errors)
         return data['createEvidences']
