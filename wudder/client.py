@@ -55,8 +55,9 @@ class WudderClient:
 
     def send_events_directly(self, event_bundles: List[Dict]) -> List[str]:
         event_bundles = [{
+            'title': event_bundle['title'],
             'event': event_bundle['event'].dict,
-            'title': event_bundle['title']
+            'signature': event_bundle['signature']
         } for event_bundle in event_bundles]
         response = self._send_events_directly_call(event_bundles)
         return [item['evhash'] for item in response]
@@ -251,10 +252,13 @@ class WudderClient:
         '''
         evidences = []
         for event_bundle in event_bundles:
-            evidences.append({
-                'content': event_bundle['event'],
+            evidence = {
                 'displayName': event_bundle['title'],
-            })
+                'content': event_bundle['event']
+            }
+            if 'signature' in event_bundle and event_bundle['signature']:
+                evidence['signature'] = event_bundle['signature']
+            evidences.append(evidence)
         variables = {'evidences': evidences}
         data, errors = self.graphql.execute(mutation, variables)
         WudderClient._manage_errors(errors)
