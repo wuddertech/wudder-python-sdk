@@ -9,7 +9,7 @@ from easygraphql import GraphQL
 from threading import Thread
 import time
 import json
-from typing import Dict
+from typing import Dict, List
 
 
 class WudderClient:
@@ -44,7 +44,7 @@ class WudderClient:
         if private_key:
             return json.loads(private_key)
 
-    def update_private_key(self, private_key: dict) -> Dict:
+    def update_private_key(self, private_key: Dict) -> Dict:
         private_key_str = utils.ordered_stringify(private_key)
         response = self._update_private_key_call(private_key_str)
         return response['ethAccount']
@@ -52,6 +52,15 @@ class WudderClient:
     def send_event_directly(self, title: str, event: Event) -> str:
         response = self._send_event_directly_call(title, event.dict)
         return response['evhash']
+
+    def send_events_directly(self, event_bundles: List[Dict]) -> List[str]:
+        event_bundles = [{
+            'title': event_bundle['title'],
+            'event': event_bundle['event'].dict,
+            'signature': event_bundle['signature']
+        } for event_bundle in event_bundles]
+        response = self._send_events_directly_call(event_bundles)
+        return [item['evhash'] for item in response]
 
     def prepare(self, title: str, event: Event) -> Dict:
         response = self._prepare_call(title, event.dict)
@@ -76,7 +85,7 @@ class WudderClient:
         }
         return output_data
 
-    def send_prepared(self, tx: dict, signature: str = None) -> str:
+    def send_prepared(self, tx: Dict, signature: str = None) -> str:
         tx_str = utils.ordered_stringify(tx)
         response = self._send_prepared_call(tx_str, signature)
         return response['evhash']
@@ -112,7 +121,7 @@ class WudderClient:
         self.graphql.set_headers({'x-jwt-token': token})
 
     @staticmethod
-    def _manage_errors(errors: list):
+    def _manage_errors(errors: List):
         if not errors:
             return
 
@@ -214,7 +223,7 @@ class WudderClient:
         return data['updateUser']
 
     @retry
-    def _send_event_directly_call(self, title: str, event: dict) -> Dict:
+    def _send_event_directly_call(self, title: str, event: Dict) -> Dict:
         mutation = '''
             mutation CreateEvidence($evidence: EvidenceInput!, $displayName: String!){
                 createEvidence(evidence: $evidence, displayName: $displayName){
@@ -233,7 +242,30 @@ class WudderClient:
         return data['createEvidence']
 
     @retry
-    def _prepare_call(self, title: str, event: dict) -> Dict:
+    def _send_events_directly_call(self, event_bundles: List[Dict]) -> Dict:
+        mutation = '''
+            mutation CreateEvidences($evidences: [EvidenceInput]!, ){
+                createEvidences(evidences: $evidences){
+                    evhash
+                }
+            }
+        '''
+        evidences = []
+        for event_bundle in event_bundles:
+            evidence = {
+                'displayName': event_bundle['title'],
+                'content': event_bundle['event']
+            }
+            if 'signature' in event_bundle and event_bundle['signature']:
+                evidence['signature'] = event_bundle['signature']
+            evidences.append(evidence)
+        variables = {'evidences': evidences}
+        data, errors = self.graphql.execute(mutation, variables)
+        WudderClient._manage_errors(errors)
+        return data['createEvidences']
+
+    @retry
+    def _prepare_call(self, title: str, event: Dict) -> Dict:
         mutation = '''
             mutation PrepareEvidence($content: ContentInput!, $displayName: String!){
                 prepareEvidence(content: $content, displayName: $displayName){
