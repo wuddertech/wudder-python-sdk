@@ -1,4 +1,5 @@
 test-env.sh
+test.py
 
 # MacOS
 *.DS_Store
@@ -108,5 +109,4 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-test-env.sh
 *.json
