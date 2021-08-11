@@ -8,7 +8,7 @@ from os import makedirs
 import time
 import requests
 from . import graphn
-from .event import Event, Fragment, EventTypes
+from .event import Event, EventTypes
 
 RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1
@@ -43,7 +43,10 @@ def ordered_stringify(unordered_dict: dict) -> str:
 def cthash(content: dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
-        pure_fragment = {'field': fragment['field'], 'value': fragment['value']}
+        pure_fragment = {
+            'field': fragment['field'],
+            'value': fragment['value']
+        }
         if 'salt' in fragment:
             pure_fragment['salt'] = fragment['salt']
         fragment = pure_fragment
@@ -71,7 +74,8 @@ def generate_private_key(password: str) -> dict:
         makedirs('./private-keys')
     except FileExistsError:
         pass
-    with open(f'./private-keys/{private_key.address}.json', 'w') as output_file:
+    with open(f'./private-keys/{private_key.address}.json',
+              'w') as output_file:
         json.dump(private_key_dict, output_file)
     return private_key_dict
 

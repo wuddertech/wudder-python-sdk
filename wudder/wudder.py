@@ -13,6 +13,7 @@ from typing import Dict
 
 
 class Wudder:
+    utils = utils
     DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
     @staticmethod
@@ -64,12 +65,14 @@ class Wudder:
              direct=False,
              full_signature=True,
              sighash_signature=False) -> str:
-        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event_type = EventTypes.TRACE if trace is None \
+            else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
             return self._wudder_client.send_event_directly(title, event)
-        return self._send_event(title, event, full_signature, sighash_signature)
+        return self._send_event(title, event, full_signature,
+                                sighash_signature)
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
@@ -81,7 +84,8 @@ class Wudder:
         return self._wudder_client.get_trace(evhash)
 
     def prepare(self, title: str, fragments: Dict, trace: str = None) -> Dict:
-        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event_type = EventTypes.TRACE if trace is None \
+            else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         return self._wudder_client.prepare(title, event)
@@ -160,10 +164,11 @@ class Wudder:
                 f"event mismatch\n{event.dict}\nvs.\n{result['event'].dict}")
 
         tx = utils.get_event_tx(result['event'])
-        if utils.ordered_stringify(result['tx']) != utils.ordered_stringify(tx):
+        if utils.ordered_stringify(
+                result['tx']) != utils.ordered_stringify(tx):
             raise ValueError(
-                f"tx mismatch\n{utils.ordered_stringify(result['tx'])}\nvs.\n{utils.ordered_stringify(tx)}"
-            )
+                f"tx mismatch\n{utils.ordered_stringify(result['tx'])}"
+                f"\nvs.\n{utils.ordered_stringify(tx)}")
 
         signature = None
         if full_signature:
