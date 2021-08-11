@@ -9,7 +9,7 @@ import time
 import requests
 from typing import Dict
 from . import graphn
-from .event import Event, Fragment, EventTypes
+from .event import Event, EventTypes
 
 RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1

@@ -5,18 +5,14 @@ from . import utils
 from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
-from . import exceptions
 from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
-from digsig.errors import InvalidSignatureError
 import json
 from typing import Dict, List
 from os import environ as env
 
 
 class Wudder:
-    ETHEREUM_ENDPOINT = env['ETHEREUM_ENDPOINT'] \
-        if 'ETHEREUM_ENDPOINT' in env \
-        else 'https://cloudflare-eth.com/'
+    utils = utils
 
     @staticmethod
     def signup(
@@ -56,6 +52,13 @@ class Wudder:
             )
         self._wudder_client = WudderClient(email, password, endpoint)
         self._login(email, password, private_key_password)
+
+        if ethereum_endpoint is not None:
+            self._ethereum_endpoint = ethereum_endpoint
+        else:
+            self._ethereum_endpoint = env['ETHEREUM_ENDPOINT'] \
+                if 'ETHEREUM_ENDPOINT' in env \
+                else 'https://cloudflare-eth.com/'
 
     @property
     def private_key(self) -> Dict:
@@ -107,7 +110,8 @@ class Wudder:
         return self._wudder_client.get_trace(evhash)
 
     def prepare(self, title: str, fragments: Dict, trace: str = None) -> Dict:
-        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event_type = EventTypes.TRACE if trace is None \
+            else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         return self._wudder_client.prepare(title, event)
@@ -132,7 +136,7 @@ class Wudder:
     def check_ethereum_proof(self, graphn_proof: str, anchor_tx: str) -> bool:
         root_hash = utils.check_proof(graphn_proof)['root_hash']
         engraved_root_hash = utils.get_ethereum_tx_input(
-            anchor_tx, self.ETHEREUM_ENDPOINT)[2:]  # remove 0x
+            anchor_tx, self._ethereum_endpoint)[2:]  # remove 0x
         if root_hash == engraved_root_hash:
             return True
         return False
@@ -196,8 +200,8 @@ class Wudder:
         if utils.ordered_stringify(
                 result['tx']) != utils.ordered_stringify(tx):
             raise ValueError(
-                f"tx mismatch\n{utils.ordered_stringify(result['tx'])}\nvs.\n{utils.ordered_stringify(tx)}"
-            )
+                f"tx mismatch\n{utils.ordered_stringify(result['tx'])}"
+                f"\nvs.\n{utils.ordered_stringify(tx)}")
 
         signature = None
         if full_signature:
