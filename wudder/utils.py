@@ -7,6 +7,7 @@ from eth_account import Account as EthereumAccount
 from os import makedirs
 import time
 import requests
+from typing import Dict
 from . import graphn
 from .event import Event, EventTypes
 
@@ -32,7 +33,7 @@ def sha3_512(text: str) -> str:
     return hashlib.sha3_512(text.encode('utf-8')).hexdigest()
 
 
-def ordered_stringify(unordered_dict: dict) -> str:
+def ordered_stringify(unordered_dict: Dict) -> str:
     keys = sorted(list(unordered_dict.keys()))
     new_dict = dict()
     for key in keys:
@@ -40,7 +41,7 @@ def ordered_stringify(unordered_dict: dict) -> str:
     return json.dumps(new_dict, separators=(',', ':'), ensure_ascii=False)
 
 
-def cthash(content: dict) -> str:
+def cthash(content: Dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
         pure_fragment = {
@@ -101,9 +102,8 @@ def check_proof(compound_proof: str = None,
         return {'valid': False}
 
     # Are proofs linked? (1/2)
-    proofs_linked = tree_proof_result['root_hash'] == block_proof[1:graphn.
-                                                                  HASH_LENGTH +
-                                                                  1]
+    proofs_linked = tree_proof_result['root_hash'] \
+        == block_proof[1:graphn.HASH_LENGTH + 1]
     if not proofs_linked:
         return {'valid': False}
 
@@ -112,8 +112,8 @@ def check_proof(compound_proof: str = None,
         return {'valid': False}
 
     if blocktree_proof is None:
-        block_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH +
-                                                         1]
+        block_proof_result['verified_hash'] = \
+            tree_proof[1:graphn.HASH_LENGTH +  1]
         return block_proof_result
 
     # Are proofs linked? (2/2)
@@ -124,8 +124,8 @@ def check_proof(compound_proof: str = None,
 
     # Check blocktree proof
     blocktree_proof_result = check_tree_proof(blocktree_proof)
-    blocktree_proof_result['verified_hash'] = tree_proof[1:graphn.HASH_LENGTH +
-                                                         1]
+    blocktree_proof_result['verified_hash'] = \
+        tree_proof[1:graphn.HASH_LENGTH + 1]
     return blocktree_proof_result
 
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 from . import utils
 from . import graphn
+from typing import Dict, List
 
 
 class EventTypes:
@@ -22,7 +23,7 @@ class Fragment:
                  value: str = None,
                  visibility: str = VISIBILITY_PUBLIC,
                  salt: str = None,
-                 fragment_dict: dict = None):
+                 fragment_dict: Dict = None):
 
         if fragment_dict is not None:
             self._load_fragment_dict(fragment_dict)
@@ -42,7 +43,7 @@ class Fragment:
 
         return True
 
-    def _load_fragment_dict(self, fragment: dict):
+    def _load_fragment_dict(self, fragment: Dict):
         self.field = fragment['field']
         self.value = fragment['value']
 
@@ -57,7 +58,7 @@ class Fragment:
             self.salt = None
 
     @property
-    def dict(self) -> dict:
+    def dict(self) -> Dict:
         fragment_dict = {
             'field': self.field,
             'value': self.value,
@@ -70,12 +71,12 @@ class Fragment:
 
 class Event:
     def __init__(self,
-                 fragments: list = None,
+                 fragments: List = None,
                  trace: str = None,
                  event_type: str = None,
                  timestamp: int = None,
                  salt: str = None,
-                 event_dict: dict = None):
+                 event_dict: Dict = None):
         if event_dict is not None:
             self._load_event_dict(event_dict)
             return
@@ -97,7 +98,7 @@ class Event:
         self.proof = None
 
     @property
-    def fragments(self) -> list:
+    def fragments(self) -> List:
         fragments = []
         for fragment in self._fragments:
             fragments.append(Fragment(fragment_dict=fragment.dict))
@@ -122,7 +123,7 @@ class Event:
 
         return True
 
-    def _set_fragments(self, fragments: list):
+    def _set_fragments(self, fragments: List):
         if not isinstance(fragments, list):
             raise TypeError
 
@@ -136,7 +137,7 @@ class Event:
             trace = graphn.ZEROS_HASH
         self.trace = trace
 
-    def _load_event_dict(self, event: dict):
+    def _load_event_dict(self, event: Dict):
         self._set_fragments([
             Fragment(fragment_dict=fragment) for fragment in event['fragments']
         ])
@@ -156,7 +157,7 @@ class Event:
             self.proof = None
 
     @property
-    def dict(self) -> dict:
+    def dict(self) -> Dict:
         fragments = []
         for fragment in self.fragments:
             fragments.append(fragment.dict)

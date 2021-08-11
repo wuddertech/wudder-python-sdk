@@ -5,35 +5,37 @@ from . import utils
 from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
-from . import exceptions
 from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
-from digsig.errors import InvalidSignatureError
 import json
-from typing import Dict
+from typing import Dict, List
+from os import environ as env
 
 
 class Wudder:
     utils = utils
-    DEFAULT_ETHEREUM_ENDPOINT = 'https://cloudflare-eth.com/'
 
     @staticmethod
-    def signup(email: str,
-               password: str,
-               private_key_password: str,
-               endpoint: str = None):
+    def signup(
+        email: str,
+        password: str,
+        private_key_password: str,
+        endpoint: str = None,
+    ):
         private_key = utils.generate_private_key(private_key_password)
         WudderClient.create_user(email, password, private_key, endpoint)
 
-    def __init__(self,
-                 email: str,
-                 password: str,
-                 private_key=None,
-                 private_key_mode: str = None,
-                 private_key_format: str = None,
-                 private_key_password: str = None,
-                 private_key_path: str = None,
-                 endpoint: str = None,
-                 ethereum_endpoint: str = None):
+    def __init__(
+        self,
+        email: str,
+        password: str,
+        private_key=None,
+        private_key_mode: str = None,
+        private_key_format: str = None,
+        private_key_password: str = None,
+        private_key_path: str = None,
+        endpoint: str = None,
+        ethereum_endpoint: str = None,
+    ):
         self._private_key = None
         if private_key is not None:
             self._private_key = PrivateKey.get_instance(
@@ -50,29 +52,58 @@ class Wudder:
             )
         self._wudder_client = WudderClient(email, password, endpoint)
         self._login(email, password, private_key_password)
-        if ethereum_endpoint is None:
-            self._ethereum_endpoint = self.DEFAULT_ETHEREUM_ENDPOINT
+
+        if ethereum_endpoint is not None:
+            self._ethereum_endpoint = ethereum_endpoint
+        else:
+            self._ethereum_endpoint = env['ETHEREUM_ENDPOINT'] \
+                if 'ETHEREUM_ENDPOINT' in env \
+                else 'https://cloudflare-eth.com/'
 
     @property
     def private_key(self) -> Dict:
         return self._private_key
 
-    def send(self,
-             title: str,
-             fragments: Dict,
-             trace: str = None,
-             event_type: str = None,
-             direct=False,
-             full_signature=True,
-             sighash_signature=False) -> str:
-        event_type = EventTypes.TRACE if trace is None \
-            else EventTypes.ADD_EVENT
+    def send(
+        self,
+        title: str,
+        fragments: Dict,
+        trace: str = None,
+        event_type: str = None,
+        direct=False,
+        full_signature=True,
+        sighash_signature=False,
+    ) -> str:
+        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
             return self._wudder_client.send_event_directly(title, event)
         return self._send_event(title, event, full_signature,
                                 sighash_signature)
+
+    def send_many(
+        self,
+        event_bundles: List[Dict],
+        full_signature=True,
+        sighash_signature=False,
+    ) -> str:
+        processed_events = []
+        for event_bundle in event_bundles:
+            trace = event_bundle['trace'] if 'trace' in event_bundle else None
+            event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+            fragments = [
+                Fragment(**fragment) for fragment in event_bundle['fragments']
+            ]
+            event = Event(fragments=fragments,
+                          trace=trace,
+                          event_type=event_type)
+            processed_events.append({
+                'event': event,
+                'title': event_bundle['title']
+            })
+        return self._send_many_events(processed_events, full_signature,
+                                      sighash_signature)
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
@@ -93,10 +124,12 @@ class Wudder:
     def get_prepared(self, tmp_hash: str) -> Dict:
         return self._wudder_client.get_prepared(tmp_hash)
 
-    def send_prepared(self,
-                      tx: Dict,
-                      full_signature=True,
-                      sighash_signature=False) -> str:
+    def send_prepared(
+        self,
+        tx: Dict,
+        full_signature=True,
+        sighash_signature=False,
+    ) -> str:
         signature = None
         if full_signature:
             signature = self._get_signature(tx)
@@ -144,18 +177,23 @@ class Wudder:
         stored_private_key = utils.generate_private_key(private_key_password)
         self._wudder_client.update_private_key(stored_private_key)
 
-    def _get_signature(self, tx: dict) -> str:
+    def _get_signature(self, tx: Dict) -> str:
         tx_str = utils.ordered_stringify(tx)
         signature = self._private_key.sign(tx_str).hex()
         return signature
 
-    def _get_sighash(self, tx: dict) -> str:
+    def _get_sighash(self, tx: Dict) -> str:
         signature = self._get_signature(tx)
         sighash = utils.sha3_512(signature)
         return sighash
 
-    def _send_event(self, title: str, event: Event, full_signature: bool,
-                    sighash_signature: bool) -> str:
+    def _send_event(
+        self,
+        title: str,
+        event: Event,
+        full_signature: bool,
+        sighash_signature: bool,
+    ) -> str:
         result = self._wudder_client.prepare(title, event)
 
         # Do not trust the server
@@ -178,3 +216,23 @@ class Wudder:
 
         evhash = self._wudder_client.send_prepared(tx, signature)
         return evhash
+
+    def _send_many_events(
+        self,
+        processed_events: List[Event],
+        full_signature: bool,
+        sighash_signature: bool,
+    ) -> List[str]:
+        event_bundles = []
+        for processed_event in processed_events:
+            tx = utils.get_event_tx(processed_event['event'])
+            signature = None
+            if full_signature:
+                signature = self._get_signature(tx)
+            if sighash_signature:
+                signature = self._get_sighash(tx)
+            event_bundle = processed_event
+            event_bundle['signature'] = signature
+            event_bundles.append(event_bundle)
+
+        return self._wudder_client.send_events_directly(event_bundles)
