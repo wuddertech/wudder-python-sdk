@@ -149,7 +149,10 @@ class Event:
         else:
             self.salt = None
 
-        self.timestamp = event['timestamp']
+        if 'timestamp' in event:
+            self.timestamp = event['timestamp']
+        else:
+            self.timestamp = utils.get_timestamp_ms()
 
         if 'proof' in event:
             self.proof = event['proof']

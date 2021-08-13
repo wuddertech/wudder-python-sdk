@@ -90,14 +90,9 @@ class Wudder:
     ) -> str:
         processed_events = []
         for event_bundle in event_bundles:
-            trace = event_bundle['trace'] if 'trace' in event_bundle else None
-            event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
-            fragments = [
-                Fragment(**fragment) for fragment in event_bundle['fragments']
-            ]
-            event = Event(fragments=fragments,
-                          trace=trace,
-                          event_type=event_type)
+            event_bundle['trace'] = event_bundle['trace'] if 'trace' in event_bundle else None
+            event_bundle['type'] = EventTypes.TRACE if event_bundle['trace']  is None else EventTypes.ADD_EVENT
+            event = Event(event_dict=event_bundle)
             processed_events.append({
                 'event': event,
                 'title': event_bundle['title']
