@@ -13,7 +13,7 @@ from typing import Dict, List
 
 
 class WudderClient:
-    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.pre.wudder.tech/graphql/'
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.dev.wudder.tech/graphql/'
 
     def __init__(self, email: str, password: str, endpoint: str = None):
         if endpoint is None:
