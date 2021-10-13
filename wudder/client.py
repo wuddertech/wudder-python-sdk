@@ -13,7 +13,7 @@ from typing import Dict, List
 
 
 class WudderClient:
-    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.pre.wudder.tech/graphql/'
+    DEFAULT_GRAPHQL_ENDPOINT = 'https://api.dev.wudder.tech/graphql/'
 
     def __init__(self, email: str, password: str, endpoint: str = None):
         if endpoint is None:
@@ -132,14 +132,11 @@ class WudderClient:
             if errors[0]['code'] == 404:
                 raise exceptions.NotFoundError(errors[0])
 
-            if errors[0]['code'] == 401:
+            if errors[0]['code'] in [401, 403]:
                 raise exceptions.AuthError(errors[0])
 
             if errors[0]['code'] == 400:
                 raise exceptions.BadRequestError(errors[0])
-
-            if errors[0]['code'] == 440:
-                raise exceptions.AuthError(errors[0])
 
         except KeyError:
             pass
