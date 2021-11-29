@@ -4,7 +4,7 @@
 from .utils import retry
 from . import exceptions
 from . import utils
-from .event import Event, Fragment
+from .event import Event
 from easygraphql import GraphQL
 from threading import Thread
 import time

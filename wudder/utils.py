@@ -113,7 +113,7 @@ def check_proof(compound_proof: str = None,
 
     if blocktree_proof is None:
         block_proof_result['verified_hash'] = \
-            tree_proof[1:graphn.HASH_LENGTH +  1]
+            tree_proof[1:graphn.HASH_LENGTH + 1]
         return block_proof_result
 
     # Are proofs linked? (2/2)
@@ -206,7 +206,8 @@ def get_event_tx(event: Event) -> dict:
     tx = {
         'cthash': cthash(event.dict),
         'version': graphn.PROTOCOL_VERSION,
-        'from': [event.trace]
+        'from': [event.trace],
+        'timestamp': event.timestamp,
     }
 
     if event.type == EventTypes.TRACE:
