@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from . import utils
-from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
@@ -74,7 +73,8 @@ class Wudder:
         full_signature=True,
         sighash_signature=False,
     ) -> str:
-        event_type = EventTypes.TRACE if trace is None else EventTypes.ADD_EVENT
+        event_type = (EventTypes.TRACE if trace is None
+                      else EventTypes.ADD_EVENT)
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
@@ -90,15 +90,21 @@ class Wudder:
     ) -> str:
         processed_events = []
         for event_bundle in event_bundles:
-            event_bundle['trace'] = event_bundle['trace'] if 'trace' in event_bundle else None
-            event_bundle['type'] = EventTypes.TRACE if event_bundle['trace']  is None else EventTypes.ADD_EVENT
+            event_bundle['trace'] \
+                = event_bundle['trace'] if 'trace' in event_bundle else None
+            event_bundle['type'] \
+                = (EventTypes.TRACE if event_bundle['trace'] is None
+                   else EventTypes.ADD_EVENT)
             event = Event(event_dict=event_bundle)
             processed_events.append({
                 'event': event,
                 'title': event_bundle['title']
             })
-        return self._send_many_events(processed_events, full_signature,
-                                      sighash_signature)
+        return self._send_many_events(
+            processed_events,
+            full_signature,
+            sighash_signature
+        )
 
     def corroborate(self, trace: str, direct=False):
         raise NotImplementedError
@@ -214,7 +220,7 @@ class Wudder:
 
     def _send_many_events(
         self,
-        processed_events: List[Event],
+        processed_events: List[Dict],
         full_signature: bool,
         sighash_signature: bool,
     ) -> List[str]:
