@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from . import utils
+from . import graphn
 from .event import Event, Fragment, EventTypes
 from .client import WudderClient
 from digsig import PrivateKey, EcdsaPrivateKey, EcdsaFormats, EcdsaModes
@@ -63,6 +64,9 @@ class Wudder:
     def private_key(self) -> Dict:
         return self._private_key
 
+    def close(self):
+        self._wudder_client.close()
+
     def send(
         self,
         title: str,
@@ -73,8 +77,9 @@ class Wudder:
         full_signature=True,
         sighash_signature=False,
     ) -> str:
-        event_type = (EventTypes.TRACE if trace is None
-                      else EventTypes.ADD_EVENT)
+        event_type = event_type or (
+            EventTypes.TRACE if trace in (None, graphn.ZEROS_HASH)
+            else EventTypes.ADD_EVENT)
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
         if direct:
@@ -90,11 +95,11 @@ class Wudder:
     ) -> str:
         processed_events = []
         for event_bundle in event_bundles:
-            event_bundle['trace'] \
-                = event_bundle['trace'] if 'trace' in event_bundle else None
-            event_bundle['type'] \
-                = (EventTypes.TRACE if event_bundle['trace'] is None
-                   else EventTypes.ADD_EVENT)
+            event_bundle = dict(event_bundle)
+            event_bundle.setdefault('trace', None)
+            event_bundle.setdefault('type', (
+                EventTypes.TRACE if event_bundle['trace'] in (None, graphn.ZEROS_HASH)
+                else EventTypes.ADD_EVENT))
             event = Event(event_dict=event_bundle)
             processed_events.append({
                 'event': event,
@@ -107,7 +112,12 @@ class Wudder:
         )
 
     def corroborate(self, trace: str, direct=False):
-        raise NotImplementedError
+        if (not isinstance(trace, str) or len(trace) != graphn.HASH_LENGTH
+                or trace == graphn.ZEROS_HASH
+                or any(char not in '0123456789abcdefABCDEF' for char in trace)):
+            raise ValueError('Corroboration requires an existing non-origin trace hash')
+        return self.send('Corroboration', [], trace=trace.lower(),
+                         event_type=EventTypes.VALIDATE, direct=direct)
 
     def get_event(self, evhash: str) -> Dict:
         return self._wudder_client.get_event(evhash)
@@ -116,7 +126,7 @@ class Wudder:
         return self._wudder_client.get_trace(evhash)
 
     def prepare(self, title: str, fragments: Dict, trace: str = None) -> Dict:
-        event_type = EventTypes.TRACE if trace is None \
+        event_type = EventTypes.TRACE if trace in (None, graphn.ZEROS_HASH) \
             else EventTypes.ADD_EVENT
         fragments = [Fragment(**fragment) for fragment in fragments]
         event = Event(fragments=fragments, trace=trace, event_type=event_type)
@@ -148,8 +158,11 @@ class Wudder:
         return False
 
     def check_graphn_proof(self, graphn_proof: str, evhash: str) -> bool:
-        result = utils.check_proof(graphn_proof)
-        return evhash == result['verified_hash']
+        try:
+            result = utils.check_proof(graphn_proof)
+            return bool(result.get('valid') and evhash == result.get('verified_hash'))
+        except (ValueError, TypeError, IndexError):
+            return False
 
     def update_private_key(self, private_key: Dict, private_key_password: str):
         self._private_key = EcdsaPrivateKey(
@@ -176,7 +189,7 @@ class Wudder:
             return
 
         stored_private_key = utils.generate_private_key(private_key_password)
-        self._wudder_client.update_private_key(stored_private_key)
+        self.update_private_key(stored_private_key, private_key_password)
 
     def _get_signature(self, tx: Dict) -> str:
         tx_str = utils.ordered_stringify(tx)

@@ -10,6 +10,7 @@ import requests
 from typing import Dict
 from . import graphn
 from .event import Event, EventTypes
+from . import exceptions
 
 RETRY_ATTEMPTS = 2
 RETRY_INTERVAL = 1
@@ -21,6 +22,8 @@ def retry(method):
         while remaining_attempts > 1:
             try:
                 return method(self, *args, **kwargs)
+            except (exceptions.AuthError, exceptions.LoginError, exceptions.NotFoundError, exceptions.BadRequestError):
+                raise
             except Exception:
                 remaining_attempts -= 1
                 time.sleep(RETRY_INTERVAL)
@@ -44,18 +47,18 @@ def ordered_stringify(unordered_dict: Dict) -> str:
 def cthash(content: Dict) -> str:
     fragment_hashes = []
     for fragment in content['fragments']:
+        if isinstance(fragment, str):
+            if len(fragment) != graphn.HASH_LENGTH or any(c not in '0123456789abcdefABCDEF' for c in fragment):
+                raise ValueError('Invalid fragment hash')
+            fragment_hashes.append(fragment)
+            continue
         pure_fragment = {
             'field': fragment['field'],
             'value': fragment['value']
         }
         if 'salt' in fragment:
             pure_fragment['salt'] = fragment['salt']
-        fragment = pure_fragment
-
-        if isinstance(fragment, str) and len(fragment) == graphn.HASH_LENGTH:
-            fragment_hashes.append(fragment)
-        else:
-            fragment_hashes.append(sha3_512(ordered_stringify(fragment)))
+        fragment_hashes.append(sha3_512(ordered_stringify(pure_fragment)))
     original_content = {
         'type': content['type'],
         'trace': content['trace'],
@@ -189,7 +192,8 @@ def check_tree_proof(proof: str) -> dict:
     return {'valid': False}
 
 
-def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
+def get_ethereum_tx_input(tx_hash: str, endpoint: str, *,
+                          timeout=(3, 30)) -> str:
     payload = {
         "jsonrpc": "2.0",
         "method": "eth_getTransactionByHash",
@@ -197,14 +201,18 @@ def get_ethereum_tx_input(tx_hash: str, endpoint: str) -> str:
         "id": 1
     }
     headers = {'Content-Type': 'application/json'}
-    response_dict = requests.post(endpoint, json=payload,
-                                  headers=headers).json()
+    with requests.post(endpoint, json=payload, headers=headers,
+                       timeout=timeout, allow_redirects=False) as response:
+        if 300 <= response.status_code < 400:
+            raise requests.HTTPError('Ethereum RPC endpoint redirected',
+                                     response=response)
+        response.raise_for_status()
+        response_dict = response.json()
     return response_dict['result']['input']
 
 
 def get_event_tx(event: Event) -> dict:
     tx = {
-        'cthash': cthash(event.dict),
         'version': graphn.PROTOCOL_VERSION,
         'from': [event.trace],
         'timestamp': event.timestamp,
@@ -218,5 +226,8 @@ def get_event_tx(event: Event) -> dict:
         tx['nodecode'] = graphn.Nodecodes.VALIDATE_NODE
     elif event.type == EventTypes.FILE:
         tx['nodecode'] = graphn.Nodecodes.CREATE_GRAPH
+
+    if event.type != EventTypes.VALIDATE:
+        tx['cthash'] = cthash(event.dict)
 
     return tx

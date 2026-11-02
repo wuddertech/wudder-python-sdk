@@ -86,13 +86,12 @@ class Event:
 
         self.type = event_type
         if self.type is None:
-            if self.trace is None:
+            if self.trace == graphn.ZEROS_HASH:
                 self.type = EventTypes.TRACE
             else:
                 self.type = EventTypes.ADD_EVENT
 
-        if timestamp is None:
-            self.timestamp = utils.get_timestamp_ms()
+        self.timestamp = utils.get_timestamp_ms() if timestamp is None else timestamp
 
         self.salt = salt
         self.proof = None
@@ -105,6 +104,8 @@ class Event:
         return fragments
 
     def match(self, event: Event) -> bool:
+        if len(self.fragments) != len(event.fragments):
+            return False
         for self_fragment, event_fragment in zip(self.fragments,
                                                  event.fragments):
             if not self_fragment.match(event_fragment):

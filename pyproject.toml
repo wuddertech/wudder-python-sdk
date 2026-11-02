@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wudder"
+dynamic = ["version"]
+description = "Create blockchain certificates for all the events of your business processes. In Ethereum. At scale."
+readme = { text = "Create blockchain certificates for the events of your business processes.", content-type = "text/plain" }
+authors = [
+    { name = "Rodrigo Martínez Castaño", email = "rodrigo@martinez.gal" },
+]
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.34.2,<3",
+    "easygraphql>=1.2610.0,<2",
+    "eth-account>=0.5.4,<1",
+    "digsig >= 2.2610.0, < 3.0.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/wuddertech/python-sdk"
+
+[tool.setuptools]
+packages = ["wudder"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "wudder.__version__" }

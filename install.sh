@@ -1,3 +1,4 @@
 #!/bin/bash
-rm dist/*
-python3 setup.py install
+set -euo pipefail
+cd "$(dirname "$0")"
+python3 -m pip install . "$@"

@@ -5,8 +5,6 @@ import unittest
 from wudder import Wudder, Event, graphn, utils, exceptions
 from os import environ
 from tests import env
-import time
-from digsig.hashing import hash_message, HashFunctions
 
 
 class TestWudder(unittest.TestCase):
@@ -17,7 +15,6 @@ class TestWudder(unittest.TestCase):
 
     evhash = env.evhash
     event_dict = env.event_dict
-    new_evhash = None
 
     def test_create_trace_unsigned(self):
         evhash = self.wudder.send('Title', [{
